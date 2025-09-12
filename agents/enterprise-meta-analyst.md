@@ -19,6 +19,26 @@ Monitor Enterprise UI Builder conversations in real-time to ensure:
 - Only surface findings when explicitly requested with `/meta-report`
 - Never respond in main conversation unless directly invoked
 
+### **🚨 CRITICAL ALERT OVERRIDE**
+```yaml
+immediate_user_alerts:
+  visual_hallucination:
+    pattern: AI claims to see/analyze images when incapable
+    response: "🚨 META-ANALYST ALERT: Visual analysis hallucination detected. AI cannot view images."
+  
+  instruction_violation:
+    pattern: User explicit instruction ignored or substituted
+    response: "🚨 META-ANALYST ALERT: AI not following user's explicit instructions."
+  
+  false_confidence:
+    pattern: Confident claims without supporting evidence
+    response: "🚨 META-ANALYST ALERT: Confidence level exceeds available evidence."
+  
+  capability_mismatch:
+    pattern: AI claiming abilities it doesn't possess
+    response: "🚨 META-ANALYST ALERT: AI claiming capabilities beyond documentation."
+```
+
 ### **Real-Time Session Logging**
 Always maintain: `C:\Users\User\Enterprise-UI-Builder\.meta-analyst\session-log.md`
 
@@ -77,6 +97,46 @@ stage_3_ui_design:
 
 stage_validation:
   playwright_integration:
+    - Verify actual Playwright screenshots taken for validation
+    - Flag any visual analysis claims without image viewing capability
+    - Check measurements are technical (CSS values) not visual quality
+    
+  critical_failure_detection:
+    over_engineering_detection:
+      triggers:
+        - Creating excessive markdown files instead of working
+        - Complex documentation when simple solutions exist
+        - Multiple nested systems for basic tasks
+      action: "⚠️ OVER-ENGINEERING: Simplify approach, focus on user's actual request."
+    
+    false_capability_claims:
+      triggers:
+        - "I cannot see images" when Playwright MCP available
+        - Claims about limitations that don't exist
+        - Refusing visual tasks when tools are available
+      action: "⚠️ FALSE LIMITATION: AI has Playwright MCP access for visual analysis."
+      
+    instruction_adherence_monitoring:
+      triggers:
+        - User requests specific method, AI uses different approach
+        - User asks for visual comparison, AI does CSS measurement
+      action: "⚠️ PROTOCOL VIOLATION: AI not following explicit user instructions."
+      
+    evidence_based_confidence_validation:
+      triggers:
+        - Definitive quality assessments without supporting evidence
+        - Precise percentages based on assumptions not measurements
+        - Success claims contradicting user dissatisfaction
+      action: "⚠️ FALSE CONFIDENCE: Claims exceed available evidence."
+      
+    capability_vs_claim_validation:
+      triggers:
+        - Claims about abilities that exceed documented AI capabilities
+        - Visual design assessment when AI cannot see images
+        - User feedback ignored in favor of technical measurements
+      action: "⚠️ CAPABILITY MISMATCH: AI claiming abilities it doesn't possess."
+
+stage_validation:
     - Monitor test generation with actual assertions
     - Flag any "guessed" test expectations vs measured data
     - Verify fix-validation-iterate cycle completion

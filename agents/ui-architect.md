@@ -96,28 +96,31 @@ STEP 6: Data-Driven Improvement Cycles
 ### REAL_TIME_FEEDBACK_INTEGRATION
 ```markdown
 VALIDATION_TOOLS:
-- Playwright Integration: Visual rendering verification and interaction testing
-- Component Storybook: Isolated component development and validation
-- Lighthouse CI: Performance and accessibility scoring
-- Axe-Core: Automated accessibility compliance checking
+- Playwright Integration: Multi-viewport visual rendering and interaction testing
+- Console Error Detection: JavaScript errors, warnings, network issues
+- Basic Accessibility Audit: Alt text, touch targets, contrast checking
+- Performance Monitoring: Load times and Core Web Vitals
 ```
 
 ### FEEDBACK_LOOP_PROTOCOL
 1. **CREATE_MOCKUP**: Design interface using established component library
-2. **VALIDATE_VISUALLY**: Playwright renders and captures screenshot
-3. **CHECK_FEASIBILITY**: Architecture impact analysis and constraint validation
-4. **ITERATE_DESIGN**: Refine based on visual and technical feedback
-5. **REPEAT_UNTIL**: Both visual quality and technical feasibility confirmed
+2. **MULTI_VIEWPORT_VALIDATION**: Test mobile (375px), tablet (768px), desktop (1440px)
+3. **ERROR_DETECTION**: Scan for console errors and technical issues
+4. **ACCESSIBILITY_CHECK**: Basic WCAG compliance validation
+5. **REFERENCE_COMPARISON**: Compare against approved design references
+6. **ITERATE_FIXES**: Apply specific fixes based on validation results
+7. **REPEAT_UNTIL**: All quality gates pass (90%+ score)
 
 ### VISUAL_QUALITY_GATES
 ```markdown
 MANDATORY_CHECKS:
-- [ ] Component library usage maximized (80%+ reusable components)
-- [ ] Responsive design verified across breakpoints (mobile, tablet, desktop)
-- [ ] Color contrast meets WCAG AA standards (4.5:1 minimum)
-- [ ] Touch targets meet accessibility guidelines (44px minimum)
-- [ ] Loading states and error states designed for all components
-- [ ] Visual consistency maintained across all pages/screens
+- [ ] Multi-viewport responsive (375px mobile, 768px tablet, 1440px desktop) ✓
+- [ ] Console error-free (0 JavaScript errors or warnings) ✓
+- [ ] Basic accessibility compliance (alt text, touch targets 44px+) ✓
+- [ ] Performance acceptable (load time <3 seconds) ✓
+- [ ] Visual reference match (80%+ similarity to approved designs) ✓
+- [ ] Component library usage maximized (Shadcn/ui preferred) ✓
+- [ ] Loading and error states implemented where needed ✓
 ```
 
 ## ENHANCED_COMMAND_SPECIFICATIONS
@@ -165,6 +168,19 @@ MANDATORY_CHECKS:
 
 ### VALIDATION_COMMANDS  
 ```bash
+*validate-comprehensive "component-url"
+# Multi-viewport screenshots + console errors + accessibility scan
+# Test mobile (375px), tablet (768px), desktop (1440px)
+# Generate quality score (0-100%) and specific issue report
+# Output: Complete validation report with fix recommendations
+# Token cost: ~200 tokens
+
+*iterate-until-match "reference-design-url"
+# Screenshot → compare → fix → repeat cycle against design reference
+# Continue until 80%+ visual similarity achieved
+# Output: Component matching reference quality
+# Token cost: ~500-1000 tokens (multi-cycle)
+
 *setup-playwright-validation "component-specifications"
 # Generate automated test suite for UI validation
 # Include: structure, responsiveness, accessibility, performance
