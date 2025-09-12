@@ -315,6 +315,55 @@
 # Output: Production readiness confirmation with deployment approval
 ```
 
+## META-ANALYST_MONITORING_COMMANDS
+
+### SILENT_MONITORING_COMMANDS
+```bash
+/meta-monitor-session
+# Begin silent monitoring of current Enterprise UI Builder conversation
+# Tracks protocol adherence, confidence building, and token efficiency
+# Output: Silent activation - no interruption to workflow
+
+/meta-report
+# Generate comprehensive session analysis report
+# Shows protocol compliance, efficiency metrics, quality indicators
+# Output: Detailed analysis with optimization recommendations
+
+/meta-silent-log "issue-description"
+# Log user-observed issue without triggering Claude response
+# Stores issue in session log for later analysis
+# Output: Silent logging - no chat interruption
+# Example: /meta-silent-log "Agent assumed user preference without asking"
+
+/meta-efficiency
+# Display real-time token efficiency and workflow optimization analysis
+# Shows stage timing, conversation bloat detection, cost tracking
+# Output: Efficiency dashboard with improvement opportunities
+```
+
+### ANALYSIS_&_REPORTING_COMMANDS
+```bash
+/meta-protocol-check
+# Check current conversation for Enterprise UI Builder protocol adherence
+# Validates stage progression, approval gates, confidence building
+# Output: Protocol compliance score with specific violations flagged
+
+/meta-confidence-audit
+# Analyze confidence building progression and fact-based decisions
+# Tracks 0% → 85% progression with evidence validation
+# Output: Confidence analysis with assumption detection report
+
+/meta-quality-scan
+# Scan for technical quality issues and protocol violations
+# Checks TypeScript compliance, accessibility, test coverage
+# Output: Quality assessment with specific issue identification
+
+/meta-token-analysis
+# Detailed token usage analysis and efficiency recommendations
+# Compares actual vs target costs for each stage
+# Output: Token optimization report with cost reduction strategies
+```
+
 ## UNIVERSAL_UTILITY_COMMANDS
 
 ### STATUS_&_PROGRESS_COMMANDS
