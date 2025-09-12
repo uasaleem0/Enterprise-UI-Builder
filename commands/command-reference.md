@@ -93,16 +93,47 @@
 # Output: Complete requirements package ready for UI design phase
 ```
 
-## STAGE 3: UI-FIRST DESIGN COMMANDS
+## STAGE 3: ASCII-FIRST UI DESIGN COMMANDS
 *Agent: @ui-architect*
 
-### DESIGN_SYSTEM_COMMANDS
+### ENHANCED_WORKFLOW_COMMANDS
 ```bash
 @ui-architect
-*create-design-foundation "visual-direction"
-# Establishes complete visual design system with component library optimization
-# Maps design vision to proven component libraries (Tailwind, Shadcn, Radix)
-# Output: Complete brand guidelines and design token system
+*research-design-patterns "project-type + target-audience"
+# Evidence-based competitor analysis using WebFetch
+# Extracts proven design patterns, colors, typography from 3-5 leaders
+# Output: Design direction with source citations and rationale
+# Token cost: ~300 tokens
+
+*wireframe-ascii-systematic "layout-description"
+# Generate structured ASCII wireframe with detailed rationale
+# Include responsive considerations and information hierarchy
+# Output: Approval-ready ASCII layout for user validation
+# Token cost: ~200 tokens
+
+*refine-wireframe "adjustment-description"
+# Modify ASCII wireframe based on user feedback
+# Maintain structural consistency and rationale
+# Output: Updated ASCII wireframe ready for implementation
+# Token cost: ~100 tokens
+
+*create-style-guide-with-preview "research-foundation"
+# Generate complete /style-guide page with live component examples
+# Include colors, typography, spacing, buttons, cards, forms, badges
+# Output: Localhost preview at /style-guide for immediate validation
+# Token cost: ~400 tokens
+
+*implement-component "approved-wireframe + style-guide"
+# Generate enterprise Next.js component from approved ASCII + style guide
+# Include TypeScript, data-testid attributes, responsive design
+# Output: Live component at localhost:3000 with hot reload
+# Token cost: ~800 tokens
+
+*refine-component "visual-adjustments"
+# Make conversational adjustments to existing component
+# Maintain enterprise standards and test compatibility
+# Output: Updated component with immediate browser preview
+# Token cost: ~300 tokens
 
 *optimize-component-library "tech-stack"
 # Maps design vision to available component libraries
@@ -120,27 +151,51 @@
 # Output: Design consistency report with correction requirements
 ```
 
-### SYSTEMATIC_UI_COMMANDS
+### DATA_DRIVEN_VALIDATION_COMMANDS
 ```bash
-*generate-complete-page-inventory "requirements"
-# Creates systematic mapping of all required pages/screens from PRD
-# Prioritizes pages by MVP critical path and user workflow importance
-# Output: Complete page inventory with component mapping and priorities
+*setup-playwright-validation "component-specifications"
+# Generate automated test suite for comprehensive UI validation
+# Include: structure verification, responsiveness, accessibility, performance
+# Output: Complete test file with data-driven assertions and test IDs
+# Token cost: ~400 tokens
 
-*design-page-batch "page-list"
-# Designs batch of 5 pages maximum using established design system
-# Applies component reuse strategy and maintains visual consistency
-# Output: Working mockups ready for architecture feasibility validation
+*validate-with-playwright "test-target"
+# Run Playwright tests and analyze results with actual measurements
+# Identify specific issues with pixel-perfect accuracy (NO guessing)
+# Output: Test results with actionable fix recommendations and data
+# Token cost: ~200 tokens
 
-*validate-architecture-feasibility "pages"
-# Analyzes UI designs for backend implications and technical constraints
-# Identifies database, API, performance, and security requirements
-# Output: Architecture impact analysis with feasibility confirmation
+*fix-validation-issues "playwright-test-results"
+# Implement fixes for issues identified by automated testing
+# Re-run tests to validate solutions and ensure all tests pass
+# Output: Updated component with passing validation and proof of fixes
+# Token cost: ~300 tokens
 
-*optimize-component-reuse
-# Reviews all designs to maximize component library usage
-# Identifies opportunities for better reuse and consistency improvements
-# Output: Component optimization recommendations with reuse strategy
+*performance-audit "component-url"
+# Lighthouse analysis with Core Web Vitals measurement
+# Identify performance bottlenecks with actual metrics
+# Output: Performance report with specific optimization recommendations
+# Token cost: ~200 tokens
+
+### DESIGN_REPLICATION_COMMANDS
+```bash
+*analyze-existing-design "website-url"
+# Use Firecrawl to extract complete design system from any website
+# Extract: colors, typography, layout patterns, component structures
+# Output: Comprehensive design specification with implementation details
+# Token cost: ~500 tokens
+
+*implement-exact-replica "firecrawl-analysis + tech-stack"
+# Generate pixel-perfect recreation using extracted design specifications
+# Maintain enterprise Next.js quality while matching original design
+# Output: Exact replica with modern tech stack and validation
+# Token cost: ~1000 tokens
+
+*extract-component-patterns "analysis-results"
+# Identify reusable component patterns from analyzed design
+# Map to Shadcn/ui components for maximum code reuse
+# Output: Component mapping strategy with implementation plan
+# Token cost: ~300 tokens
 ```
 
 ### VISUAL_VALIDATION_COMMANDS
