@@ -71,38 +71,56 @@ Enterprise UI Builder combines ASCII-first wireframing, data-driven validation, 
 
 ## Development Process
 
-### Stage 1: Technical Requirements Discovery
-- **Outcome**: Complete tech stack selection and constraints
-- Natural language project description → technical understanding
-- Context-aware questioning based on project type
-- Proven technology recommendations
+### **STAGE 1: Technical Requirements Discovery**
+**Deliverables:**
+- `technical-requirements.md` - Complete tech requirements + tech stack recommendations
+- `architecture-overview.md` - High-level system architecture  
+- `performance-requirements.md` - Scale, speed, performance constraints
 
-### Stage 2: Feature Specification & PRD
-- **Outcome**: Complete functional and non-functional requirements
-- Story-driven feature discovery through intelligent conversation
-- User workflow mapping and business logic specification
-- MVP scope definition with clear priorities
+**Checkpoint**: Technical approval required before feature discovery
 
-### Stage 3: UI Vision & Design-First Development
-- **Outcome**: Complete UI design with validated technical feasibility
-- Visual design system creation with component library optimization
-- Systematic page design using established design patterns
-- Real-time architecture feedback and iterative refinement
+---
 
-### Stage 4: Complete System Architecture
-- **Outcome**: Final architecture specification based on proven UI
-- Database schema emergence from validated UI requirements
-- API structure definition matching user interaction patterns
-- Performance and security architecture optimization
+### **STAGE 2A: Feature Requirements & PRD (Conversational)**
+**Deliverables:**
+- `product-requirements-document.md` - Complete PRD including:
+  - All features and specifications
+  - First-iteration user flows (sitemap/navigation structure)
+  - Acceptance criteria (for complex/vague features)
 
-### Stage 5: Implementation Planning
-- **Outcome**: Detailed development roadmap with quality gates
-- Development phase sequencing with dependency management
-- Quality assurance strategy with automated validation
-- Deployment pipeline and monitoring setup
+**Checkpoint**: Feature list approval required before research phase
 
-### Stage 6: Professional Development & Delivery
-- **Outcome**: Production-ready system with enterprise standards
+---
+
+### **STAGE 2B: Industry Research & Feature Refinement**
+**Deliverables:**
+- `competitive-analysis.md` - Comprehensive competitor research
+- Updated `product-requirements-document.md` with research-based refinements
+
+**Checkpoint**: Final PRD approval required before design phase
+
+---
+
+### **STAGE 3A: Design Requirements Discovery**  
+**Deliverables:**
+- `design-brief.md` - Complete design vision with real-time preference tracking
+
+**Process**: Iterative design reference validation until 5 approved references achieved
+
+**Checkpoint**: Design brief approval required before style guide creation
+
+---
+
+### **STAGE 3B: Style Guide Creation**
+**Deliverables:**
+- Live style guide on localhost - Complete implementation-ready design system
+
+**Checkpoint**: Style guide approval required before development begins
+
+---
+
+### **STAGE 4+: Implementation & Delivery**
+**Outcome**: Production-ready system with enterprise standards
 - Enterprise-grade code generation with proven patterns
 - Comprehensive testing and security validation
 - Deployment, monitoring, and documentation delivery
