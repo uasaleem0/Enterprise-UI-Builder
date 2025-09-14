@@ -1,0 +1,13 @@
+{
+  "name": "enterprise-ui-builder",
+  "version": "1.0.0",
+  "description": "Meta-Analyst enabled Enterprise UI Builder",
+  "main": "auto-loader.js",
+  "scripts": {
+    "postinstall": "node auto-loader.js",
+    "meta-status": "node -e \"console.log(global.metaAnalyst?.getStatus() || 'Meta-Analyst not active')\"",
+    "meta-summary": "node -e \"global.metaAnalyst?.generateSummary()\""
+  },
+  "keywords": ["ui-builder", "meta-analyst", "monitoring"],
+  "author": "Enterprise UI Builder System"
+}
