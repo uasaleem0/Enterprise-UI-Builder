@@ -1,0 +1,205 @@
+#!/usr/bin/env node
+
+/**
+ * Meta-Analyst Report Generator
+ * Usage: meta-report [--critical|--summary|--errors]
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+// ANSI Colors
+const colors = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+  cyan: '\x1b[36m',
+  magenta: '\x1b[35m',
+  dim: '\x1b[2m'
+};
+
+function getMetaAnalystDir() {
+  return path.join(__dirname, '..', '.meta-analyst');
+}
+
+function readSessionLog() {
+  const logPath = path.join(getMetaAnalystDir(), 'session-log.md');
+  if (!fs.existsSync(logPath)) {
+    return null;
+  }
+  return fs.readFileSync(logPath, 'utf8');
+}
+
+function readSystemErrors() {
+  const errorPath = path.join(getMetaAnalystDir(), 'system-errors.json');
+  if (!fs.existsSync(errorPath)) {
+    return [];
+  }
+  try {
+    return JSON.parse(fs.readFileSync(errorPath, 'utf8'));
+  } catch (e) {
+    return [];
+  }
+}
+
+function parseSessionLog(logContent) {
+  if (!logContent) return [];
+
+  const entries = [];
+  const sections = logContent.split(/## /);
+
+  for (const section of sections) {
+    if (section.trim()) {
+      const lines = section.split('\n');
+      const header = lines[0];
+      const match = header.match(/(\w+) - (.+)/);
+
+      if (match) {
+        const [, category, timestamp] = match;
+        const issue = lines.find(line => line.startsWith('**Issue**:'));
+        const context = lines.find(line => line.startsWith('**Context**:'));
+
+        entries.push({
+          category: category,
+          timestamp: timestamp,
+          issue: issue ? issue.replace('**Issue**: ', '') : 'Unknown',
+          context: context ? context.replace('**Context**: ', '') : 'Unknown'
+        });
+      }
+    }
+  }
+
+  return entries;
+}
+
+function generateReport(options = {}) {
+  const sessionEntries = parseSessionLog(readSessionLog());
+  const systemErrors = readSystemErrors();
+
+  console.log(colors.cyan + colors.bright + '🔍 META-ANALYST REPORT' + colors.reset);
+  console.log(colors.dim + '═'.repeat(50) + colors.reset);
+  console.log();
+
+  // Summary statistics
+  const totalIssues = sessionEntries.length + systemErrors.length;
+  const criticalIssues = [
+    ...sessionEntries.filter(e => e.category === 'CRITICAL'),
+    ...systemErrors.filter(e => e.severity === 'CRITICAL')
+  ].length;
+
+  console.log(colors.bright + '📊 SUMMARY' + colors.reset);
+  console.log(`Total Issues: ${totalIssues}`);
+  console.log(`Critical Issues: ${colors.red}${criticalIssues}${colors.reset}`);
+  console.log(`System Errors: ${systemErrors.length}`);
+  console.log(`Session Logs: ${sessionEntries.length}`);
+  console.log();
+
+  // Show critical issues first
+  if (criticalIssues > 0 || options.critical) {
+    console.log(colors.red + colors.bright + '🚨 CRITICAL ISSUES' + colors.reset);
+
+    sessionEntries.filter(e => e.category === 'CRITICAL').forEach(entry => {
+      console.log(colors.red + `▸ ${entry.issue}` + colors.reset);
+      console.log(colors.dim + `  Context: ${entry.context}` + colors.reset);
+      console.log(colors.dim + `  Time: ${entry.timestamp}` + colors.reset);
+      console.log();
+    });
+
+    systemErrors.filter(e => e.severity === 'CRITICAL').forEach(error => {
+      console.log(colors.red + `▸ ${error.type}: ${error.message}` + colors.reset);
+      console.log(colors.dim + `  Source: ${error.source}` + colors.reset);
+      console.log(colors.dim + `  Time: ${new Date(error.timestamp).toISOString()}` + colors.reset);
+      console.log();
+    });
+  }
+
+  // Show system errors if requested
+  if (options.errors || (!options.critical && !options.summary)) {
+    console.log(colors.yellow + colors.bright + '⚠️ SYSTEM ERRORS' + colors.reset);
+
+    const recentErrors = systemErrors.slice(-5); // Last 5 errors
+    if (recentErrors.length === 0) {
+      console.log(colors.green + '✅ No system errors detected' + colors.reset);
+    } else {
+      recentErrors.forEach(error => {
+        const color = error.severity === 'CRITICAL' ? colors.red :
+                     error.severity === 'WARNING' ? colors.yellow : colors.dim;
+        console.log(color + `▸ ${error.type}: ${error.message}` + colors.reset);
+        console.log(colors.dim + `  Source: ${error.source}` + colors.reset);
+        console.log();
+      });
+    }
+  }
+
+  // Show session issues if not summary-only
+  if (!options.summary && !options.critical) {
+    console.log(colors.cyan + colors.bright + '📝 SESSION ISSUES' + colors.reset);
+
+    const recentSessions = sessionEntries.slice(-5); // Last 5 entries
+    if (recentSessions.length === 0) {
+      console.log(colors.green + '✅ No session issues logged' + colors.reset);
+    } else {
+      recentSessions.forEach(entry => {
+        const color = entry.category === 'CRITICAL' ? colors.red :
+                     entry.category === 'BUG' ? colors.yellow :
+                     entry.category === 'IMPROVEMENT' ? colors.cyan : colors.dim;
+        console.log(color + `▸ [${entry.category}] ${entry.issue}` + colors.reset);
+        console.log(colors.dim + `  Context: ${entry.context}` + colors.reset);
+        console.log();
+      });
+    }
+  }
+
+  // Generate recommendations
+  console.log(colors.magenta + colors.bright + '💡 RECOMMENDATIONS' + colors.reset);
+
+  const recommendations = [];
+
+  if (systemErrors.filter(e => e.type === 'ENOENT').length > 2) {
+    recommendations.push('Check file paths and directory structure');
+  }
+
+  if (systemErrors.filter(e => e.type === 'PORT_CONFLICT').length > 0) {
+    recommendations.push('Implement dynamic port selection for development servers');
+  }
+
+  if (systemErrors.filter(e => e.type === 'WINDOWS_COMPAT').length > 0) {
+    recommendations.push('Replace Unix commands with cross-platform alternatives');
+  }
+
+  if (sessionEntries.filter(e => e.category === 'IMPROVEMENT').length > 3) {
+    recommendations.push('Consider batch-processing improvement suggestions');
+  }
+
+  if (recommendations.length === 0) {
+    console.log(colors.green + '✅ No specific recommendations at this time' + colors.reset);
+  } else {
+    recommendations.forEach(rec => {
+      console.log(colors.magenta + `▸ ${rec}` + colors.reset);
+    });
+  }
+
+  console.log();
+  console.log(colors.dim + `Report generated: ${new Date().toISOString()}` + colors.reset);
+}
+
+// Command line interface
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  const options = {
+    critical: args.includes('--critical'),
+    summary: args.includes('--summary'),
+    errors: args.includes('--errors')
+  };
+
+  try {
+    generateReport(options);
+  } catch (error) {
+    console.error(colors.red + `Error generating report: ${error.message}` + colors.reset);
+    process.exit(1);
+  }
+}
+
+module.exports = { generateReport, parseSessionLog };

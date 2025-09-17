@@ -1,0 +1,100 @@
+#!/usr/bin/env node
+
+/**
+ * Meta-Analyst Silent Logging Command
+ * Usage: meta-silent-log "issue description"
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+// ANSI Colors
+const colors = {
+  reset: '\x1b[0m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  cyan: '\x1b[36m',
+  dim: '\x1b[2m'
+};
+
+function getSessionLogPath() {
+  const sessionDir = path.join(__dirname, '..', '.meta-analyst');
+  if (!fs.existsSync(sessionDir)) {
+    fs.mkdirSync(sessionDir, { recursive: true });
+  }
+  return path.join(sessionDir, 'session-log.md');
+}
+
+function getCurrentContext() {
+  return {
+    timestamp: new Date().toISOString(),
+    cwd: process.cwd(),
+    pid: process.pid
+  };
+}
+
+function categorizeIssue(issue) {
+  const categories = {
+    'CRITICAL': /critical|error|fail|crash|broken|cannot|unable/i,
+    'BUG': /bug|incorrect|wrong|unexpected|issue/i,
+    'IMPROVEMENT': /improve|enhance|better|optimize|suggestion/i,
+    'WARNING': /warn|caution|potential|might|could/i
+  };
+
+  for (const [category, pattern] of Object.entries(categories)) {
+    if (pattern.test(issue)) {
+      return category;
+    }
+  }
+  return 'NOTE';
+}
+
+function logIssue(issue, severity = null) {
+  const context = getCurrentContext();
+  const category = severity || categorizeIssue(issue);
+  const logPath = getSessionLogPath();
+
+  const logEntry = `
+## ${category} - ${context.timestamp}
+**Issue**: ${issue}
+**Context**: ${context.cwd}
+**Session**: ${context.pid}
+
+---
+`;
+
+  // Append to session log
+  fs.appendFileSync(logPath, logEntry);
+
+  // Silent confirmation (minimal output)
+  console.log(colors.dim + `📝 Logged: ${category} issue` + colors.reset);
+}
+
+// Command line interface
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  const issue = args.join(' ');
+
+  if (!issue) {
+    console.log(colors.yellow + 'Usage: meta-silent-log "issue description"' + colors.reset);
+    console.log(colors.cyan + 'Example: meta-silent-log "background processes not being monitored"' + colors.reset);
+    process.exit(1);
+  }
+
+  // Check for severity flags
+  let severity = null;
+  if (args.includes('--critical')) {
+    severity = 'CRITICAL';
+  } else if (args.includes('--bug')) {
+    severity = 'BUG';
+  } else if (args.includes('--improvement')) {
+    severity = 'IMPROVEMENT';
+  }
+
+  // Filter out flags from issue description
+  const cleanIssue = args.filter(arg => !arg.startsWith('--')).join(' ');
+
+  logIssue(cleanIssue, severity);
+}
+
+module.exports = { logIssue, categorizeIssue };

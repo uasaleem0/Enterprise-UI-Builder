@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "created": "2025-09-14",
+  "patterns": {
+    "visual_hallucination": {
+      "count": 0,
+      "examples": [],
+      "improvement": "Strengthen capability detection"
+    },
+    "false_confidence": {
+      "count": 0,
+      "examples": [],
+      "improvement": "Require evidence for confidence claims"
+    },
+    "over_engineering": {
+      "count": 0,
+      "examples": [],
+      "improvement": "Simplify before optimize"
+    },
+    "assumptions": {
+      "count": 0,
+      "examples": [],
+      "improvement": "Ask user instead of assume"
+    }
+  },
+  "sessions": [],
+  "rules_evolution": {
+    "detection_accuracy": 0.85,
+    "false_positive_rate": 0.1,
+    "notification_threshold": 3
+  }
+}
