@@ -60,6 +60,20 @@ function startNextDev(projectPath, port) {
 async function bootstrapNext(projectPath, synthesizedHtml, port) {
   try { await initPackage(projectPath); } catch {}
   try { await scaffoldNext(projectPath, synthesizedHtml); } catch {}
+  // Ensure styles and include tokens if present
+  try {
+    const stylesDir = path.join(projectPath, 'styles');
+    await ensureDir(stylesDir);
+    const appJs = "import '../styles/globals.css';\nexport default function MyApp({ Component, pageProps }){ return <Component {...pageProps} /> }\n";
+    await fsp.writeFile(path.join(projectPath, 'pages', '_app.js'), appJs, 'utf8');
+    let globals = ":root{--accent:#1e40af;--page-bg:#ffffff;--font:system-ui,Segoe UI,Roboto,Arial,sans-serif;} body{background:var(--page-bg);font-family:var(--font);}\n";
+    try {
+      const tokensCssPath = path.join(projectPath, 'tokens', 'tokens.css');
+      const tokensCss = await fsp.readFile(tokensCssPath, 'utf8');
+      globals = tokensCss + '\n' + globals;
+    } catch {}
+    await fsp.writeFile(path.join(stylesDir, 'globals.css'), globals, 'utf8');
+  } catch {}
   const installed = await installDeps(projectPath);
   if (!installed) return { ok: false, note: 'deps-install-failed' };
   const proc = startNextDev(projectPath, port);
@@ -68,4 +82,3 @@ async function bootstrapNext(projectPath, synthesizedHtml, port) {
 }
 
 module.exports = { bootstrapNext };
-

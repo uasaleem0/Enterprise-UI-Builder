@@ -16,6 +16,8 @@ const http = require('http');
 const { executeProtocol30 } = require('../protocols/protocol-3.0/integrated-protocol-3.0.js');
 const { extractTarget } = require('./extractor');
 const { synthesizeFromExtraction } = require('./synthesis');
+const { extractPages } = require('./extract-pages');
+const { generateTokens } = require('./tokens');
 const { synthesizeNext } = require('./synthesize-next');
 const { bootstrapNext } = require('./bootstrap-next');
 
@@ -142,12 +144,9 @@ async function runOrchestration(targetUrl, opts = {}) {
   }
 
   // 1) Extract target (screenshots + structure)
-  try {
-    const ex = await extractTarget(targetUrl, projectPath);
-    console.log(`[extract] Artifacts at ${ex.evidenceDir}`);
-  } catch (e) {
-    console.log(`[extract] Skipped or failed: ${e.message || String(e)}`);
-  }
+  try { const ex = await extractTarget(targetUrl, projectPath); console.log(`[extract] Artifacts at ${ex.evidenceDir}`); } catch (e) { console.log(`[extract] Skipped or failed: ${e.message || String(e)}`); }
+  try { const px = await extractPages(site, projectPath); console.log(`[extract] Per-page data at ${px.outDir}`); } catch (e) { console.log(`[extract] pages skipped: ${e.message||String(e)}`); }
+  try { const tk = await generateTokens(projectPath); console.log(`[tokens] Generated ${tk.jsonPath}`); } catch (e) { console.log(`[tokens] skipped: ${e.message||String(e)}`); }
 
   // 2) Synthesize candidate from extraction (fallback to placeholder)
   let synthOk = false;
@@ -167,6 +166,8 @@ async function runOrchestration(targetUrl, opts = {}) {
   let server = null;
   if (wantNext && synthesizedHtml) {
     try {
+      // If we synthesized multi-page, prefer Next multi-page layout
+      try { const extraction = require(path.join(process.cwd(), projectPath, 'evidence','extraction','extraction.json')); } catch {}
       const nx = await bootstrapNext(projectPath, synthesizedHtml, port);
       if (nx.ok && nx.proc) {
         nextProc = nx.proc;
