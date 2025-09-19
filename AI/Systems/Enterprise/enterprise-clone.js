@@ -3,7 +3,7 @@
 /**
  * Enterprise Clone CLI
  * Usage:
- *   node enterprise-clone.js <target-url> [--name <projectName>] [--local <url>] [--similarity <n>] [--port <n>]
+ *   node enterprise-clone.js <target-url> [--name <projectName>] [--local <url>] [--similarity <n>] [--port <n>] [--template next] [--enforce-budgets]
  */
 
 const os = require('os');
@@ -21,6 +21,8 @@ function printHelp() {
     '  --local <url>            Local preview URL (default: http://localhost:3000)',
     '  --port <number>          Local server port (default: 3000)',
     '  --similarity <number>    Target similarity (default: 90)',
+    '  --template next          Bootstrap Next.js candidate (falls back if install fails)',
+    '  --enforce-budgets        Enforce a11y/perf/multi-viewport budgets (ENT_ENFORCE_BUDGETS=1)',
     '  --help                   Show this help',
     '',
     'Example:',
@@ -45,6 +47,8 @@ async function main() {
     else if (a === '--local') opts.localUrl = args[++i];
     else if (a === '--port') opts.port = args[++i];
     else if (a === '--similarity') opts.targetSimilarity = parseInt(args[++i], 10);
+    else if (a === '--template') opts.template = args[++i];
+    else if (a === '--enforce-budgets') process.env.ENT_ENFORCE_BUDGETS = '1';
   }
 
   // Prefer plain output on Windows
@@ -68,4 +72,3 @@ async function main() {
 }
 
 main();
-

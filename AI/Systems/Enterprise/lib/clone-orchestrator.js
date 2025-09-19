@@ -16,6 +16,7 @@ const http = require('http');
 const { executeProtocol30 } = require('../protocols/protocol-3.0/integrated-protocol-3.0.js');
 const { extractTarget } = require('./extractor');
 const { synthesizeFromExtraction } = require('./synthesis');
+const { bootstrapNext } = require('./bootstrap-next');
 
 function generateProjectName(url) {
   try {
@@ -149,9 +150,11 @@ async function runOrchestration(targetUrl, opts = {}) {
 
   // 2) Synthesize candidate from extraction (fallback to placeholder)
   let synthOk = false;
+  let synthesizedHtml = null;
   try {
     const s = await synthesizeFromExtraction(projectPath);
     synthOk = s.ok;
+    if (s.ok) { try { synthesizedHtml = await fsp.readFile(s.indexPath, 'utf8'); } catch {} }
     console.log(s.ok ? `[synthesis] index.html updated (${s.indexPath})` : `[synthesis] ${s.reason}`);
   } catch (e) {
     console.log(`[synthesis] Error: ${e.message || String(e)}`);
@@ -160,8 +163,27 @@ async function runOrchestration(targetUrl, opts = {}) {
   if (!synthOk) {
     await writeCandidate(projectPath, port);
   }
-  const server = await createServer(projectPath, port);
-  console.log(`[orchestrator] Local server started at ${localUrl}`);
+  // Optional Next.js bootstrap (ENT_TEMPLATE=next or --template next)
+  let nextProc = null;
+  const wantNext = (opts.template === 'next') || (process.env.ENT_TEMPLATE === 'next');
+  let server = null;
+  if (wantNext && synthesizedHtml) {
+    try {
+      const nx = await bootstrapNext(projectPath, synthesizedHtml, port);
+      if (nx.ok && nx.proc) {
+        nextProc = nx.proc;
+        console.log(`[orchestrator] Next.js dev server starting on ${localUrl}`);
+        await new Promise(r => setTimeout(r, 3000));
+      } else {
+        console.log(`[orchestrator] Next bootstrap skipped: ${nx.note || 'unknown'}`);
+      }
+    } catch (e) { console.log(`[orchestrator] Next bootstrap error: ${e.message || String(e)}`); }
+  }
+
+  if (!nextProc) {
+    server = await createServer(projectPath, port);
+    console.log(`[orchestrator] Local server started at ${localUrl}`);
+  }
 
   // 3) Execute Protocol 3.0 with explicit localUrl and projectPath
   let result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity });
@@ -179,8 +201,11 @@ async function runOrchestration(targetUrl, opts = {}) {
   }
 
   // Stop server
-  await new Promise(resolve => server.close(() => resolve()));
-  console.log('[orchestrator] Server stopped');
+  if (server) {
+    await new Promise(resolve => server.close(() => resolve()));
+    console.log('[orchestrator] Server stopped');
+  }
+  if (nextProc) { try { nextProc.kill(); } catch {}; console.log('[orchestrator] Next.js server stopped'); }
 
   // Persist a simple result log
   const log = {
@@ -198,6 +223,16 @@ async function runOrchestration(targetUrl, opts = {}) {
     const mv = await summarizeMultiViewport(targetUrl, localUrl, path.join(projectPath, 'evidence', 'validation'));
     if (mv && mv.summaryPath) {
       console.log(`[validation] Multi-viewport summary: ${mv.summaryPath}`);
+    }
+  } catch {}
+
+  // 6) Budgets & gating (a11y/perf/multi-viewport) if ENT_ENFORCE_BUDGETS=1
+  try {
+    const { enforceBudgets } = require('./budgets');
+    const gated = await enforceBudgets({ targetUrl, localUrl, projectPath, result });
+    if (gated && gated.updated) {
+      result = gated.result;
+      console.log(`[gating] Budgets applied: success=${result.success}`);
     }
   } catch {}
 

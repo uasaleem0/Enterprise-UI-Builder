@@ -82,6 +82,9 @@ async function extractTarget(targetUrl, projectPath) {
   // Structure + visual hints
   const struct = await extractStructure(targetUrl);
 
+  // Asset harvesting: stylesheets, images, and fonts referenced by stylesheets
+  const assets = await harvestAssets(targetUrl, evidenceDir);
+
   const artifact = {
     meta: {
       targetUrl,
@@ -90,7 +93,8 @@ async function extractTarget(targetUrl, projectPath) {
     },
     screenshots: shots,
     structure: struct.ok ? struct.data : null,
-    notes: !struct.ok ? [struct.reason] : []
+    notes: !struct.ok ? [struct.reason] : [],
+    assets
   };
 
   const outPath = path.join(evidenceDir, 'extraction.json');
@@ -100,3 +104,79 @@ async function extractTarget(targetUrl, projectPath) {
 
 module.exports = { extractTarget };
 
+// -------------------- internals: asset harvesting --------------------
+
+function toAbsolute(baseUrl, href) {
+  try { return new URL(href, baseUrl).toString(); } catch { return null; }
+}
+
+async function download(url, destPath) {
+  try {
+    const res = await fetch(url, { redirect: 'follow' });
+    if (!res.ok) return false;
+    const ab = await res.arrayBuffer();
+    await ensureDir(path.dirname(destPath));
+    await fsp.writeFile(destPath, Buffer.from(ab));
+    return true;
+  } catch { return false; }
+}
+
+async function harvestAssets(targetUrl, outDir) {
+  const playwright = tryRequire('playwright');
+  const result = { css: [], images: [], fonts: [], notes: [] };
+  if (!playwright) { result.notes.push('playwright-not-installed'); return result; }
+
+  const cssDir = path.join(outDir, 'assets', 'css');
+  const imgDir = path.join(outDir, 'assets', 'img');
+  const fontDir = path.join(outDir, 'assets', 'fonts');
+
+  const links = await withPage(playwright, { width: 1440, height: 900 }, async (page) => {
+    await page.goto(targetUrl, { waitUntil: 'load' });
+    return await page.evaluate(() => {
+      const abs = (href) => { try { return new URL(href, location.href).toString(); } catch { return null; } };
+      const css = Array.from(document.querySelectorAll('link[rel="stylesheet"][href]')).map(l => abs(l.href)).filter(Boolean);
+      const images = Array.from(document.images || []).map(img => abs(img.src)).filter(Boolean);
+      return { css, images };
+    });
+  });
+
+  // Download CSS and parse for font URLs
+  const fontUrls = new Set();
+  for (const cssUrl of (links.css || [])) {
+    const fileName = cssUrl.split('?')[0].split('/').pop() || 'style.css';
+    const dest = path.join(cssDir, fileName);
+    const ok = await download(cssUrl, dest);
+    result.css.push({ url: cssUrl, path: ok ? dest : null });
+    if (ok) {
+      try {
+        const content = await fsp.readFile(dest, 'utf8');
+        const regex = /url\(([^)]+)\)/g; let m;
+        while ((m = regex.exec(content))) {
+          const raw = m[1].replace(/['"]/g, '').trim();
+          if (/\.(woff2?|ttf|otf)(\?|#|$)/i.test(raw)) {
+            const abs = toAbsolute(cssUrl, raw);
+            if (abs) fontUrls.add(abs);
+          }
+        }
+      } catch {}
+    }
+  }
+
+  // Download images
+  for (const imgUrl of (links.images || [])) {
+    const fileName = (imgUrl.split('?')[0].split('/').pop() || 'image').slice(-128);
+    const dest = path.join(imgDir, fileName);
+    const ok = await download(imgUrl, dest);
+    result.images.push({ url: imgUrl, path: ok ? dest : null });
+  }
+
+  // Download fonts
+  for (const fUrl of fontUrls) {
+    const fileName = fUrl.split('?')[0].split('/').pop() || 'font';
+    const dest = path.join(fontDir, fileName);
+    const ok = await download(fUrl, dest);
+    result.fonts.push({ url: fUrl, path: ok ? dest : null });
+  }
+
+  return result;
+}
