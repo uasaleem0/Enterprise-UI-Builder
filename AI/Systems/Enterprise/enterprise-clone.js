@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 
 /**
  * Enterprise Clone CLI
@@ -14,7 +14,7 @@ function printHelp() {
     '============================================',
     ' Enterprise Clone CLI',
     '============================================',
-    'Usage: node enterprise-clone.js <website-url> [options]',
+    'Usage: node enterprise-clone.js <website-url> [options] (supports multi-page crawl)',
     '',
     'Options:',
     '  --name <string>          Custom project name',
@@ -41,15 +41,7 @@ async function main() {
 
   const targetUrl = args[0];
   const opts = {};
-  for (let i = 1; i < args.length; i++) {
-    const a = args[i];
-    if (a === '--name') opts.projectName = args[++i];
-    else if (a === '--local') opts.localUrl = args[++i];
-    else if (a === '--port') opts.port = args[++i];
-    else if (a === '--similarity') opts.targetSimilarity = parseInt(args[++i], 10);
-    else if (a === '--template') opts.template = args[++i];
-    else if (a === '--enforce-budgets') process.env.ENT_ENFORCE_BUDGETS = '1';
-  }
+  for (let i = 1; i < args.length; i++) {\n    const a = args[i];\n    if (a === '--name') opts.projectName = args[++i];\n    else if (a === '--local') opts.localUrl = args[++i];\n    else if (a === '--port') opts.port = args[++i];\n    else if (a === '--similarity') opts.targetSimilarity = parseInt(args[++i], 10);\n    else if (a === '--template') opts.template = args[++i];\n    else if (a === '--enforce-budgets') process.env.ENT_ENFORCE_BUDGETS = '1';\n    else if (a === '--crawl-limit') opts.crawlLimit = args[++i];\n    else if (a === '--describe') opts.describe = args[++i];\n  }
 
   // Prefer plain output on Windows
   if (process.platform === 'win32' && !process.env.ENT_PLAIN) {

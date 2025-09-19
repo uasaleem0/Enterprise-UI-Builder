@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 
 /**
  * Clone Orchestrator (Milestone 1)
@@ -16,6 +16,7 @@ const http = require('http');
 const { executeProtocol30 } = require('../protocols/protocol-3.0/integrated-protocol-3.0.js');
 const { extractTarget } = require('./extractor');
 const { synthesizeFromExtraction } = require('./synthesis');
+const { synthesizeNext } = require('./synthesize-next');
 const { bootstrapNext } = require('./bootstrap-next');
 
 function generateProjectName(url) {
@@ -92,7 +93,7 @@ async function writeCandidate(projectPath, port) {
         <p>This is a bootstrap candidate page served locally on port ${port}.</p>
       </section>
       <footer>
-        <small>Enterprise System · Candidate</small>
+        <small>Enterprise System Â· Candidate</small>
       </footer>
     </div>
   </body>
@@ -160,10 +161,7 @@ async function runOrchestration(targetUrl, opts = {}) {
     console.log(`[synthesis] Error: ${e.message || String(e)}`);
   }
 
-  if (!synthOk) {
-    await writeCandidate(projectPath, port);
-  }
-  // Optional Next.js bootstrap (ENT_TEMPLATE=next or --template next)
+  if (!synthOk) { await writeCandidate(projectPath, port); }\n  // Optional Next.js bootstrap (ENT_TEMPLATE=next or --template next) (ENT_TEMPLATE=next or --template next)
   let nextProc = null;
   const wantNext = (opts.template === 'next') || (process.env.ENT_TEMPLATE === 'next');
   let server = null;
