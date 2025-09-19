@@ -17,6 +17,11 @@ const { synthesizeNext } = require('./synthesize-next');
 const { bootstrapNext } = require('./bootstrap-next');
 const { crawl, saveSiteMap } = require('./crawler');
 const { buildPrd, savePrd } = require('./prd');
+// Ensure visual engines/adapters are wired
+try { require('../hooks/microsoft-sim-adapter.js'); } catch {}
+try { require('../hooks/playwright-mcp-adapter.js'); } catch {}
+const { runPreflight } = require('./preflight');
+const { appendEvent } = require('./logger');
 
 function generateProjectName(url) {
   try { const u = new URL(url); const domain = u.hostname.replace('www.', ''); return domain.split('.')[0] + '-protocol30-clone'; } catch { return 'website-protocol30-clone-' + Date.now(); }
@@ -68,25 +73,28 @@ async function runOrchestration(targetUrl, opts = {}){
   const backupsRoot = path.join(baseDir, '.backups', 'projects');
   await ensureDir(backupsRoot);
   const backupPath = await backupIfExists(projectPath, backupsRoot);
-  if (backupPath) console.log(`[backup] Existing project backed up to: ${backupPath}`);
+  if (backupPath) { console.log(`[backup] Existing project backed up to: ${backupPath}`); await appendEvent(projectPath, { level:'info', stage:'backup', msg:'backup-created', path: backupPath }); }
 
   // Optional PRD persist for app flow
-  try { if (opts.describe) { const prd = buildPrd(opts.describe); const prdPaths = await savePrd(projectPath, prd); console.log(`[prd] Saved: ${prdPaths.mdPath}`); } } catch {}
+  try { if (opts.describe) { const prd = buildPrd(opts.describe); const prdPaths = await savePrd(projectPath, prd); console.log(`[prd] Saved: ${prdPaths.mdPath}`); await appendEvent(projectPath, { level:'info', stage:'prd', msg:'saved', md: prdPaths.mdPath }); } } catch {}
+
+  // Preflight
+  try { const pf = await runPreflight(); await appendEvent(projectPath, { level:'info', stage:'preflight', msg:'results', data: pf }); console.log('[preflight]', JSON.stringify(pf.rows)); if (pf.warnings?.length) console.log('[preflight-warn]', pf.warnings.join(' | ')); } catch {}
 
   // Crawl (clone) and extract
   let site = { pages: [] };
-  try { site = await crawl(targetUrl, parseInt(opts.crawlLimit || '8',10)); const sm = await saveSiteMap(projectPath, site); console.log(`[crawl] Site map: ${sm}`); } catch (e) { console.log(`[crawl] Skipped: ${e.message||String(e)}`); }
-  try { const ex = await extractTarget(targetUrl, projectPath); console.log(`[extract] Artifacts at ${ex.evidenceDir}`); } catch (e) { console.log(`[extract] Skipped or failed: ${e.message||String(e)}`); }
-  try { const px = await extractPages(site, projectPath); console.log(`[extract] Per-page data at ${px.outDir}`); } catch (e) { console.log(`[extract] pages skipped: ${e.message||String(e)}`); }
+  try { site = await crawl(targetUrl, parseInt(opts.crawlLimit || '8',10)); const sm = await saveSiteMap(projectPath, site); console.log(`[crawl] Site map: ${sm}`); await appendEvent(projectPath, { level:'info', stage:'crawl', msg:'site-map', path: sm, pages: site.pages?.length||0 }); } catch (e) { console.log(`[crawl] Skipped: ${e.message||String(e)}`); await appendEvent(projectPath, { level:'warn', stage:'crawl', msg:'skipped', error: e.message||String(e) }); }
+  try { const ex = await extractTarget(targetUrl, projectPath); console.log(`[extract] Artifacts at ${ex.evidenceDir}`); await appendEvent(projectPath, { level:'info', stage:'extract', msg:'done', dir: ex.evidenceDir }); } catch (e) { console.log(`[extract] Skipped or failed: ${e.message||String(e)}`); await appendEvent(projectPath, { level:'warn', stage:'extract', msg:'failed', error: e.message||String(e) }); }
+  try { const px = await extractPages(site, projectPath); console.log(`[extract] Per-page data at ${px.outDir}`); await appendEvent(projectPath, { level:'info', stage:'extract', msg:'per-page', dir: px.outDir }); } catch (e) { console.log(`[extract] pages skipped: ${e.message||String(e)}`); await appendEvent(projectPath, { level:'warn', stage:'extract', msg:'per-page-skipped', error: e.message||String(e) }); }
 
   // Load structure and generate tokens
   let struct = null; let tokens = null;
   try { const extraction = require(path.join(projectPath,'evidence','extraction','extraction.json')); struct = extraction.structure || null; } catch {}
-  try { const tk = await generateTokens(projectPath); tokens = tk.tokens || null; console.log(`[tokens] Generated ${tk.jsonPath}`); } catch (e) { console.log(`[tokens] skipped: ${e.message||String(e)}`); }
+  try { const tk = await generateTokens(projectPath); tokens = tk.tokens || null; console.log(`[tokens] Generated ${tk.jsonPath}`); await appendEvent(projectPath, { level:'info', stage:'tokens', msg:'generated', path: tk.jsonPath }); } catch (e) { console.log(`[tokens] skipped: ${e.message||String(e)}`); await appendEvent(projectPath, { level:'warn', stage:'tokens', msg:'skipped', error: e.message||String(e) }); }
 
   // Synthesize minimal static HTML for server fallback
   let synthOk = false; let synthesizedHtml = null;
-  try { const s = await synthesizeFromExtraction(projectPath); synthOk = s.ok; if (s.ok) synthesizedHtml = await fsp.readFile(s.indexPath,'utf8'); console.log(s.ok ? `[synthesis] index.html updated (${s.indexPath})` : `[synthesis] ${s.reason}`); } catch (e) { console.log(`[synthesis] Error: ${e.message||String(e)}`); }
+  try { const s = await synthesizeFromExtraction(projectPath); synthOk = s.ok; if (s.ok) { synthesizedHtml = await fsp.readFile(s.indexPath,'utf8'); await appendEvent(projectPath, { level:'info', stage:'synthesis', msg:'static-updated', index: s.indexPath }); } console.log(s.ok ? `[synthesis] index.html updated (${s.indexPath})` : `[synthesis] ${s.reason}`); } catch (e) { console.log(`[synthesis] Error: ${e.message||String(e)}`); await appendEvent(projectPath, { level:'error', stage:'synthesis', msg:'static-error', error: e.message||String(e) }); }
   if (!synthOk) await writeCandidate(projectPath, port);
 
   // Next.js bootstrap (if requested)
@@ -96,29 +104,30 @@ async function runOrchestration(targetUrl, opts = {}){
     try { if (site && struct) await synthesizeNext(projectPath, site, struct, tokens || {}); } catch {}
     try {
       const nx = await bootstrapNext(projectPath, synthesizedHtml, port, { auth: !!opts.auth });
-      if (nx.ok && nx.proc) { nextProc = nx.proc; console.log(`[orchestrator] Next.js dev server starting on ${localUrl}`); await new Promise(r=>setTimeout(r,3000)); }
+      if (nx.ok && nx.proc) { nextProc = nx.proc; console.log(`[orchestrator] Next.js dev server starting on ${localUrl}`); await appendEvent(projectPath, { level:'info', stage:'serve', msg:'next-dev-start' }); await new Promise(r=>setTimeout(r,3000)); }
       else console.log(`[orchestrator] Next bootstrap skipped: ${nx.note || 'unknown'}`);
     } catch (e) { console.log(`[orchestrator] Next bootstrap error: ${e.message||String(e)}`); }
   }
-  if (!nextProc) { server = await createServer(projectPath, port); console.log(`[orchestrator] Local server started at ${localUrl}`); }
+  if (!nextProc) { server = await createServer(projectPath, port); console.log(`[orchestrator] Local server started at ${localUrl}`); await appendEvent(projectPath, { level:'info', stage:'serve', msg:'static-start' }); }
 
   // Protocol 3.0 + Iteration v2
-  let result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity });
+  let result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); await appendEvent(projectPath, { level:'info', stage:'validate', msg:'protocol30', result });
   const targetSim = parseInt(opts.targetSimilarity || '90', 10);
   if (!result.success && (result.finalSimilarity || 0) < targetSim) {
-    try { const s2 = await synthesizeFromExtraction(projectPath); if (s2.ok) { console.log('[iterate] Re-synthesized candidate; re-validate'); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); } } catch {}
-    try { const { patchContentFromExtraction } = require('./patcher-content'); const pc = await patchContentFromExtraction(projectPath); if (pc.changed) { console.log(`[iterate] Page content patched (${pc.files.length}); re-validate`); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); } } catch {}
-    try { const { patchHeroComponent } = require('./patcher-hero'); const ph = await patchHeroComponent(projectPath); if (ph.changed) { console.log('[iterate] Hero patched; re-validate'); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); } } catch {}
-    try { const { patchTokens } = require('./patcher'); const pr = await patchTokens(projectPath); if (pr.changed) { console.log('[iterate] Tokens patched; re-validate'); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); } } catch {}
+    try { const s2 = await synthesizeFromExtraction(projectPath); if (s2.ok) { console.log('[iterate] Re-synthesized candidate; re-validate'); await appendEvent(projectPath, { level:'info', stage:'iterate', msg:'resynth' }); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); await appendEvent(projectPath, { level:'info', stage:'validate', msg:'protocol30', result }); } } catch {}
+    try { const { patchContentFromExtraction } = require('./patcher-content'); const pc = await patchContentFromExtraction(projectPath); if (pc.changed) { console.log(`[iterate] Page content patched (${pc.files.length}); re-validate`); await appendEvent(projectPath, { level:'info', stage:'iterate', msg:'content-patch', files: pc.files.length }); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); await appendEvent(projectPath, { level:'info', stage:'validate', msg:'protocol30', result }); } } catch {}
+    try { const { patchHeroComponent } = require('./patcher-hero'); const ph = await patchHeroComponent(projectPath); if (ph.changed) { console.log('[iterate] Hero patched; re-validate'); await appendEvent(projectPath, { level:'info', stage:'iterate', msg:'hero-patch' }); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); await appendEvent(projectPath, { level:'info', stage:'validate', msg:'protocol30', result }); } } catch {}
+    try { const { patchTokens } = require('./patcher'); const pr = await patchTokens(projectPath); if (pr.changed) { console.log('[iterate] Tokens patched; re-validate'); await appendEvent(projectPath, { level:'info', stage:'iterate', msg:'token-patch' }); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); await appendEvent(projectPath, { level:'info', stage:'validate', msg:'protocol30', result }); } } catch {}
   }
 
   // Stop preview
-  if (server) { await new Promise(resolve=> server.close(()=>resolve())); console.log('[orchestrator] Server stopped'); }
-  if (nextProc) { try { nextProc.kill(); } catch {}; console.log('[orchestrator] Next.js server stopped'); }
+  if (server) { await new Promise(resolve=> server.close(()=>resolve())); console.log('[orchestrator] Server stopped'); await appendEvent(projectPath, { level:'info', stage:'serve', msg:'static-stop' }); }
+  if (nextProc) { try { nextProc.kill(); } catch {}; console.log('[orchestrator] Next.js server stopped'); await appendEvent(projectPath, { level:'info', stage:'serve', msg:'next-dev-stop' }); }
 
   // Log
   const log = { timestamp: new Date().toISOString(), targetUrl, localUrl, projectName, projectPath, result };
   const logPath = path.join(projectPath,'orchestrator-log.json'); await fsp.writeFile(logPath, JSON.stringify(log,null,2),'utf8'); console.log(`[orchestrator] Result written: ${logPath}`);
+  await appendEvent(projectPath, { level:'info', stage:'summary', msg:'complete', log: logPath });
 
   // Validation summaries
   let mvSummary = null;

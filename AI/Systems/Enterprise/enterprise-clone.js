@@ -69,6 +69,7 @@ async function main() {
   if (process.platform === 'win32' && !process.env.ENT_PLAIN) {
     process.env.ENT_PLAIN = '1';
   }
+  if (opts.visualEngine) process.env.ENT_VISUAL_ENGINE = opts.visualEngine;
 
   try {
     const res = await runOrchestration(targetUrl, opts);

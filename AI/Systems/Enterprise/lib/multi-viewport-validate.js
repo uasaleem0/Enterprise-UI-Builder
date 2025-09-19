@@ -22,9 +22,37 @@ async function withPage(playwright, viewport, fn) {
   try { return await fn(page); } finally { await context.close(); await browser.close(); }
 }
 
+const crypto = require('crypto');
+
+async function hashHtml(url, viewport){
+  try {
+    const text = await (await fetch(url, { redirect:'follow' })).text();
+    const key = `${viewport.width}x${viewport.height}:${url}:${text.substring(0, 5000)}`;
+    return crypto.createHash('sha256').update(key).digest('hex').substring(0,12);
+  } catch { return null; }
+}
+
 async function capture(url, outPath, viewport) {
   const playwright = tryRequire('playwright');
   if (!playwright) return false;
+  // Caching: if a hash file exists for this URL+viewport, reuse
+  try {
+    const h = await hashHtml(url, viewport);
+    if (h) {
+      const cached = outPath.replace(/\.png$/, `-${h}.png`);
+      const fs = require('fs');
+      if (fs.existsSync(cached)) {
+        try { fs.copyFileSync(cached, outPath); } catch {}
+        return true;
+      }
+      const ok = await withPage(playwright, viewport, async (page) => {
+        await page.goto(url, { waitUntil: 'load' });
+        await page.screenshot({ path: outPath, fullPage: true });
+      });
+      try { fs.copyFileSync(outPath, cached); } catch {}
+      return ok;
+    }
+  } catch {}
   await withPage(playwright, viewport, async (page) => {
     await page.goto(url, { waitUntil: 'load' });
     await page.screenshot({ path: outPath, fullPage: true });
