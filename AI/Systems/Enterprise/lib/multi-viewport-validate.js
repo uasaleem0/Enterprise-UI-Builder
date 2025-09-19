@@ -10,6 +10,7 @@
 const fs = require('fs');
 const fsp = require('fs').promises;
 const path = require('path');
+const { compareVisual } = require('./visual-compare');
 
 function tryRequire(name) { try { return require(name); } catch { return null; } }
 async function ensureDir(p) { await fsp.mkdir(p, { recursive: true }); }
@@ -45,14 +46,14 @@ function diffImages(aPath, bPath) {
   return { score: Math.round(score) };
 }
 
-async function summarizeMultiViewport(targetUrl, localUrl, outDir) {
+async function summarizeMultiViewport(targetUrl, localUrl, outDir, options = {}) {
   await ensureDir(outDir);
   const viewports = [
     { id: 'desktop', width: 1440, height: 900 },
     { id: 'tablet', width: 768, height: 1024 },
     { id: 'mobile', width: 375, height: 812 }
   ];
-  const results = [];
+  const results = []; const warnings = [];
   for (const v of viewports) {
     const base = path.join(outDir, v.id);
     const tgt = base + '-target.png';
@@ -61,9 +62,19 @@ async function summarizeMultiViewport(targetUrl, localUrl, outDir) {
       const ok1 = await capture(targetUrl, tgt, { width: v.width, height: v.height });
       const ok2 = await capture(localUrl, loc, { width: v.width, height: v.height });
       if (ok1 && ok2) {
-        const diff = diffImages(tgt, loc) || { score: null };
-        results.push({ viewport: v.id, score: diff.score });
+        // Prefer Microsoft or MCP; fallback to pixelmatch
+        const cmp = await compareVisual({
+          visualEngine: options.visualEngine || 'auto',
+          baselinePath: tgt,
+          candidatePath: loc,
+          localUrl,
+          targetUrl,
+          minScore: parseInt(process.env.ENT_TARGET_MV_MIN || '85', 10)
+        });
+        if (cmp.warnings?.length) warnings.push(...cmp.warnings);
+        results.push({ viewport: v.id, score: cmp.score ?? null, engine: cmp.engine || null });
       } else {
+        warnings.push('[warn] Playwright not installed: screenshot capture unavailable');
         results.push({ viewport: v.id, score: null, note: 'playwright-missing' });
       }
     } catch (e) {
@@ -71,7 +82,7 @@ async function summarizeMultiViewport(targetUrl, localUrl, outDir) {
     }
   }
   const summary = {
-    targetUrl, localUrl, createdAt: new Date().toISOString(), results,
+    targetUrl, localUrl, createdAt: new Date().toISOString(), results, warnings,
     minScore: Math.min(...results.map(r => (typeof r.score === 'number' ? r.score : 101)))
   };
   const summaryPath = path.join(outDir, 'multi-viewport-summary.json');
@@ -80,4 +91,3 @@ async function summarizeMultiViewport(targetUrl, localUrl, outDir) {
 }
 
 module.exports = { summarizeMultiViewport };
-

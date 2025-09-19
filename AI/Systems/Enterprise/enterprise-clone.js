@@ -54,6 +54,10 @@ async function main() {
     else if (a === '--auth') opts.auth = true;
     else if (a === '--no-auth') opts.auth = false;
     else if (a === '--deploy') opts.deploy = true;
+    else if (a === '--rollback') opts.rollback = true;
+    else if (a === '--visual-engine') opts.visualEngine = args[++i];
+    else if (a === '--pause-after-threshold') opts.pauseAfterThreshold = true;
+    else if (a === '--auto') opts.auto = true;
   }
 
   // Defaults per your preferences

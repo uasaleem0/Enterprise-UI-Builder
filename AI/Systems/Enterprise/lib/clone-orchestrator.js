@@ -121,7 +121,8 @@ async function runOrchestration(targetUrl, opts = {}){
   const logPath = path.join(projectPath,'orchestrator-log.json'); await fsp.writeFile(logPath, JSON.stringify(log,null,2),'utf8'); console.log(`[orchestrator] Result written: ${logPath}`);
 
   // Validation summaries
-  try { const { summarizeMultiViewport } = require('./multi-viewport-validate'); const mv = await summarizeMultiViewport(targetUrl, localUrl, path.join(projectPath,'evidence','validation')); if (mv && mv.summaryPath) console.log(`[validation] Multi-viewport summary: ${mv.summaryPath}`); } catch {}
+  let mvSummary = null;
+  try { const { summarizeMultiViewport } = require('./multi-viewport-validate'); const mv = await summarizeMultiViewport(targetUrl, localUrl, path.join(projectPath,'evidence','validation'), { visualEngine: opts.visualEngine || 'auto' }); if (mv && mv.summaryPath) { console.log(`[validation] Multi-viewport summary: ${mv.summaryPath}`); mvSummary = JSON.parse(fs.readFileSync(mv.summaryPath,'utf8')); } } catch {}
   try { const { validateIntegrity } = require('./validate-integrity'); const iv = await validateIntegrity(projectPath, localUrl, path.join(projectPath,'evidence','validation')); if (iv && iv.reportPath) console.log(`[validation] Integrity: ${iv.reportPath}`); } catch {}
   try { const extracted = require(path.join(projectPath,'evidence','extraction','extraction.json')); const { validateStructure } = require('./validate-structure'); const sv = await validateStructure(extracted, localUrl); const p = path.join(projectPath,'evidence','validation','dom-parity.json'); await ensureDir(path.dirname(p)); await fsp.writeFile(p, JSON.stringify(sv,null,2),'utf8'); console.log(`[validation] DOM parity: ${p}`); } catch {}
 
@@ -135,8 +136,20 @@ async function runOrchestration(targetUrl, opts = {}){
   // Evidence index
   try { const { writeEvidenceIndex } = require('./evidence-index'); const idx = await writeEvidenceIndex(projectPath); console.log(`[evidence] Index: ${idx}`); } catch {}
 
+  // Pause for human feedback if threshold reached and not auto
+  try {
+    const threshold = parseInt(process.env.ENT_TARGET_MV_MIN || '90', 10);
+    const score = (result && typeof result.finalSimilarity === 'number') ? result.finalSimilarity : (mvSummary ? mvSummary.minScore : 0);
+    if (!opts.auto && (opts.pauseAfterThreshold || true) && score >= threshold) {
+      const fbDir = path.join(projectPath,'feedback'); await ensureDir(fbDir);
+      const fbPath = path.join(fbDir,'REQUEST.md');
+      const note = `# Feedback Requested\n\n- Similarity score: ${score}\n- Evidence index: evidence/index.html\n\nPlease describe desired changes (e.g., hero padding, CTA text, colors).`;
+      await fsp.writeFile(fbPath, note, 'utf8');
+      console.log(`[feedback] Threshold met (${score}%). Awaiting feedback at ${fbPath}`);
+    }
+  } catch {}
+
   return { projectPath, localUrl, result, logPath };
 }
 
 module.exports = { runOrchestration };
-
