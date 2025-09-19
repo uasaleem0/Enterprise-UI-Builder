@@ -115,7 +115,23 @@ async function runOrchestration(targetUrl, opts = {}){
   try { if (opts.describe) { const prd = buildPrd(opts.describe); const prdPaths = await savePrd(projectPath, prd); console.log(`[prd] Saved: ${prdPaths.mdPath}`); await appendEvent(projectPath, { level:'info', stage:'prd', msg:'saved', md: prdPaths.mdPath }); } } catch {}
 
   // Preflight
-  try { const pf = await runPreflight(); await appendEvent(projectPath, { level:'info', stage:'preflight', msg:'results', data: pf }); if (process.env.ENT_QUIET !== '1') { console.log('[preflight]', JSON.stringify(pf.rows)); if (pf.warnings?.length) console.log('[preflight-warn]', pf.warnings.join(' | ')); } } catch {}
+  try {
+    const pf = await runPreflight();
+    await appendEvent(projectPath, { level:'info', stage:'preflight', msg:'results', data: pf });
+    if (process.env.ENT_QUIET !== '1') {
+      console.log('[preflight]', JSON.stringify(pf.rows));
+      if (pf.warnings?.length) console.log('[preflight-warn]', pf.warnings.join(' | '));
+    }
+    // Critical fail if Playwright or ms-similarity adapter missing
+    const need = ['Playwright','ms-similarity-adapter'];
+    const missing = pf.rows.filter(r=>need.includes(r.label) && !r.ok).map(r=>r.label);
+    if (missing.length) {
+      const msg = `[fatal] Missing critical visual requirements: ${missing.join(', ')}`;
+      console.log(msg);
+      await appendEvent(projectPath, { level:'error', stage:'preflight', msg:'fatal-missing', missing });
+      return { projectPath, localUrl, result: { success:false, finalSimilarity:0, error: 'critical-missing-visual-engines', missing }, logPath: path.join(projectPath,'orchestrator-log.json') };
+    }
+  } catch {}
 
   // Crawl (clone) and extract
   let site = { pages: [] };
