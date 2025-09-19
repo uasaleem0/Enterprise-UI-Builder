@@ -1,0 +1,165 @@
+#!/usr/bin/env node
+
+/**
+ * Clone Orchestrator (Milestone 1)
+ * - Creates a simple candidate project (no external deps)
+ * - Starts a local HTTP server
+ * - Runs Protocol 3.0 validation against target URL
+ * - Stops server and writes a result log
+ * - Creates timestamped backups when reusing an existing project name
+ */
+
+const fs = require('fs');
+const fsp = require('fs').promises;
+const path = require('path');
+const http = require('http');
+const { executeProtocol30 } = require('../protocols/protocol-3.0/integrated-protocol-3.0.js');
+
+function generateProjectName(url) {
+  try {
+    const u = new URL(url);
+    const domain = u.hostname.replace('www.', '');
+    return domain.split('.')[0] + '-protocol30-clone';
+  } catch {
+    return 'website-protocol30-clone-' + Date.now();
+  }
+}
+
+async function ensureDir(p) {
+  await fsp.mkdir(p, { recursive: true });
+}
+
+function nowStamp() {
+  const d = new Date();
+  const pad = (n)=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+async function backupIfExists(projectPath, backupsRoot) {
+  if (fs.existsSync(projectPath)) {
+    const stamp = nowStamp();
+    const dest = path.join(backupsRoot, path.basename(projectPath) + '-' + stamp);
+    await ensureDir(dest);
+    // Node 16+: fs.cp available; fallback to manual copy if needed
+    if (fs.cp) {
+      await fsp.cp(projectPath, dest, { recursive: true });
+    } else {
+      // simple recursive copy
+      const copyRecursive = async (src, dst) => {
+        const stat = await fsp.stat(src);
+        if (stat.isDirectory()) {
+          await ensureDir(dst);
+          const entries = await fsp.readdir(src);
+          for (const e of entries) {
+            await copyRecursive(path.join(src, e), path.join(dst, e));
+          }
+        } else {
+          await fsp.copyFile(src, dst);
+        }
+      };
+      await copyRecursive(projectPath, dest);
+    }
+    return dest;
+  }
+  return null;
+}
+
+async function writeCandidate(projectPath, port) {
+  await ensureDir(projectPath);
+  const indexHtml = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Enterprise Candidate</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 2rem; }
+      header, footer { padding: 1rem 0; }
+      .container { max-width: 960px; margin: 0 auto; }
+      .hero { padding: 3rem 0; background: #f5f5f5; margin: 1rem 0; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Enterprise Candidate</h1>
+      </header>
+      <section class="hero">
+        <h2>Placeholder Hero</h2>
+        <p>This is a bootstrap candidate page served locally on port ${port}.</p>
+      </section>
+      <footer>
+        <small>Enterprise System · Candidate</small>
+      </footer>
+    </div>
+  </body>
+  </html>`;
+  await fsp.writeFile(path.join(projectPath, 'index.html'), indexHtml, 'utf8');
+  // Minimal package for traceability (no deps)
+  const pkg = {
+    name: path.basename(projectPath), version: '0.0.1', private: true,
+    scripts: { start: 'node server.js' }
+  };
+  await fsp.writeFile(path.join(projectPath, 'package.json'), JSON.stringify(pkg, null, 2), 'utf8');
+}
+
+function createServer(projectPath, port) {
+  const indexPath = path.join(projectPath, 'index.html');
+  const server = http.createServer((req, res) => {
+    try {
+      const html = fs.readFileSync(indexPath, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Server error');
+    }
+  });
+  return new Promise(resolve => {
+    server.listen(port, () => resolve(server));
+  });
+}
+
+async function runOrchestration(targetUrl, opts = {}) {
+  const baseDir = process.cwd();
+  const projectsRoot = path.join(baseDir, 'projects');
+  await ensureDir(projectsRoot);
+
+  const projectName = opts.projectName || generateProjectName(targetUrl);
+  const port = parseInt(opts.port || (opts.localUrl ? new URL(opts.localUrl).port || '3000' : '3000'), 10);
+  const localUrl = opts.localUrl || `http://localhost:${port}`;
+  const projectPath = path.join(projectsRoot, projectName);
+  const backupsRoot = path.join(baseDir, '.backups', 'projects');
+  await ensureDir(backupsRoot);
+
+  const backupPath = await backupIfExists(projectPath, backupsRoot);
+  if (backupPath) {
+    console.log(`[backup] Existing project backed up to: ${backupPath}`);
+  }
+
+  await writeCandidate(projectPath, port);
+  const server = await createServer(projectPath, port);
+  console.log(`[orchestrator] Local server started at ${localUrl}`);
+
+  // Execute Protocol 3.0 with explicit localUrl and projectPath
+  const result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity });
+
+  // Stop server
+  await new Promise(resolve => server.close(() => resolve()));
+  console.log('[orchestrator] Server stopped');
+
+  // Persist a simple result log
+  const log = {
+    timestamp: new Date().toISOString(),
+    targetUrl, localUrl, projectName, projectPath,
+    result
+  };
+  const logPath = path.join(projectPath, 'orchestrator-log.json');
+  await fsp.writeFile(logPath, JSON.stringify(log, null, 2), 'utf8');
+  console.log(`[orchestrator] Result written: ${logPath}`);
+
+  return { projectPath, localUrl, result, logPath };
+}
+
+module.exports = { runOrchestration };
+
