@@ -14,6 +14,8 @@ const fsp = require('fs').promises;
 const path = require('path');
 const http = require('http');
 const { executeProtocol30 } = require('../protocols/protocol-3.0/integrated-protocol-3.0.js');
+const { extractTarget } = require('./extractor');
+const { synthesizeFromExtraction } = require('./synthesis');
 
 function generateProjectName(url) {
   try {
@@ -137,12 +139,44 @@ async function runOrchestration(targetUrl, opts = {}) {
     console.log(`[backup] Existing project backed up to: ${backupPath}`);
   }
 
-  await writeCandidate(projectPath, port);
+  // 1) Extract target (screenshots + structure)
+  try {
+    const ex = await extractTarget(targetUrl, projectPath);
+    console.log(`[extract] Artifacts at ${ex.evidenceDir}`);
+  } catch (e) {
+    console.log(`[extract] Skipped or failed: ${e.message || String(e)}`);
+  }
+
+  // 2) Synthesize candidate from extraction (fallback to placeholder)
+  let synthOk = false;
+  try {
+    const s = await synthesizeFromExtraction(projectPath);
+    synthOk = s.ok;
+    console.log(s.ok ? `[synthesis] index.html updated (${s.indexPath})` : `[synthesis] ${s.reason}`);
+  } catch (e) {
+    console.log(`[synthesis] Error: ${e.message || String(e)}`);
+  }
+
+  if (!synthOk) {
+    await writeCandidate(projectPath, port);
+  }
   const server = await createServer(projectPath, port);
   console.log(`[orchestrator] Local server started at ${localUrl}`);
 
-  // Execute Protocol 3.0 with explicit localUrl and projectPath
-  const result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity });
+  // 3) Execute Protocol 3.0 with explicit localUrl and projectPath
+  let result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity });
+
+  // 4) Minimal iterative patching: if similarity below target, try re-synthesis (no-op if already synthesized)
+  const targetSim = parseInt(opts.targetSimilarity || '90', 10);
+  if (!result.success && (result.finalSimilarity || 0) < targetSim) {
+    try {
+      const s2 = await synthesizeFromExtraction(projectPath);
+      if (s2.ok) {
+        console.log('[iterate] Re-synthesized candidate; re-running validation once');
+        result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity });
+      }
+    } catch {}
+  }
 
   // Stop server
   await new Promise(resolve => server.close(() => resolve()));
@@ -158,8 +192,16 @@ async function runOrchestration(targetUrl, opts = {}) {
   await fsp.writeFile(logPath, JSON.stringify(log, null, 2), 'utf8');
   console.log(`[orchestrator] Result written: ${logPath}`);
 
+  // 5) Optional multi-viewport validation summary (best-effort)
+  try {
+    const { summarizeMultiViewport } = require('./multi-viewport-validate');
+    const mv = await summarizeMultiViewport(targetUrl, localUrl, path.join(projectPath, 'evidence', 'validation'));
+    if (mv && mv.summaryPath) {
+      console.log(`[validation] Multi-viewport summary: ${mv.summaryPath}`);
+    }
+  } catch {}
+
   return { projectPath, localUrl, result, logPath };
 }
 
 module.exports = { runOrchestration };
-
