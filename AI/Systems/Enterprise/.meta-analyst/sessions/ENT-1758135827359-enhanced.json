@@ -1,0 +1,37 @@
+{
+  "sessionId": "ENT-1758135827359",
+  "duration": 3,
+  "violations": [],
+  "patterns": {},
+  "systemErrors": {
+    "timestamp": "2025-09-17T19:03:47.368Z",
+    "totalErrors": 3,
+    "criticalErrors": 2,
+    "warningErrors": 1,
+    "monitoredProcesses": 1,
+    "recentErrors": [
+      {
+        "timestamp": 1758135827360,
+        "type": "ENOENT",
+        "source": "bash-63c2de",
+        "message": "Port 3001 is in use, trying 3002 instead.\nError: ENOENT: no such file or directory, scandir 'C:\\Users\\User\\AI\\Systems\\Enterprise-UI-",
+        "severity": "CRITICAL"
+      },
+      {
+        "timestamp": 1758135827360,
+        "type": "PORT_CONFLICT",
+        "source": "bash-63c2de",
+        "message": "⚠ Port 3000 is in use, trying 3001 instead.\n ⚠ Port 3001 is in use, try",
+        "severity": "WARNING"
+      },
+      {
+        "timestamp": 1758135827360,
+        "type": "RUNTIME_ERROR",
+        "source": "bash-63c2de",
+        "message": "ventures.jpg received text/html; charset=utf-8\n ⨯ unhandledRejection: Error: ENOENT: no such file or directory, scandi",
+        "severity": "CRITICAL"
+      }
+    ]
+  },
+  "recommendations": []
+}
