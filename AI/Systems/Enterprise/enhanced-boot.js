@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 
 /**
  * Enhanced Enterprise UI Builder Boot Display
@@ -20,7 +20,7 @@ console.log = (...args) => {
 };
 
 // ANSI Color codes for enhanced display (auto-plain mode if not TTY or ENT_PLAIN=1)
-const usePlain = process.env.ENT_PLAIN === '1' || !process.stdout.isTTY;
+const usePlain = process.env.ENT_PLAIN === '1' || process.platform === 'win32' || !process.stdout.isTTY;
 const colors = usePlain ? {
   reset: '', bright: '', dim: '', red: '', green: '', yellow: '', blue: '', magenta: '', cyan: '', white: '', bgBlue: '', bgGreen: ''
 } : {
@@ -99,24 +99,24 @@ function checkDocumentationStatus() {
 function displayDocumentationStatus() {
   const docStatus = checkDocumentationStatus();
 
-  console.log(colors.blue + colors.bright + '📚 DOCUMENTATION REVIEW STATUS' + colors.reset);
+  console.log(colors.blue + colors.bright + 'ðŸ“š DOCUMENTATION REVIEW STATUS' + colors.reset);
 
   Object.entries(docStatus).forEach(([doc, status]) => {
     const statusColor = status === 'AVAILABLE' ? colors.green : colors.red;
-    const statusIcon = status === 'AVAILABLE' ? '✅' : '❌';
+    const statusIcon = status === 'AVAILABLE' ? 'âœ…' : 'âŒ';
 
-    console.log(colors.white + '├─ ' + doc + ': ' + statusColor + statusIcon + ' ' + status + colors.reset);
+    console.log(colors.white + 'â”œâ”€ ' + doc + ': ' + statusColor + statusIcon + ' ' + status + colors.reset);
   });
 
   const allAvailable = Object.values(docStatus).every(status => status === 'AVAILABLE');
-  const overallStatus = allAvailable ? '✅ COMPLETE' : '❌ INCOMPLETE';
+  const overallStatus = allAvailable ? 'âœ… COMPLETE' : 'âŒ INCOMPLETE';
   const overallColor = allAvailable ? colors.green : colors.red;
 
-  console.log(colors.white + '└─ Documentation Review: ' + overallColor + overallStatus + colors.reset);
+  console.log(colors.white + 'â””â”€ Documentation Review: ' + overallColor + overallStatus + colors.reset);
 
   if (!allAvailable) {
     console.log();
-    console.log(colors.red + colors.bright + '⚠️ WARNING: Documentation review incomplete!' + colors.reset);
+    console.log(colors.red + colors.bright + 'âš ï¸ WARNING: Documentation review incomplete!' + colors.reset);
     console.log(colors.yellow + 'Claude MUST complete documentation review before Enterprise UI Builder execution.' + colors.reset);
   }
 
@@ -125,11 +125,11 @@ function displayDocumentationStatus() {
 }
 
 function displayComplianceProof() {
-  console.log(colors.cyan + colors.bright + '✅ CLAUDE COMPLIANCE PROOF' + colors.reset);
-  console.log(colors.white + '├─ Read config/system-config.md: VALIDATION_FRAMEWORK (lines 155-185)' + colors.reset);
-  console.log(colors.white + '├─ Read checkpoint-system.md: "NEVER skip approval gates" (line 74)' + colors.reset);
-  console.log(colors.white + '├─ Understands: Use existing approval gates, not new validation files' + colors.reset);
-  console.log(colors.white + '└─ Status: ' + colors.green + 'DOCUMENTATION REVIEWED & UNDERSTOOD' + colors.reset);
+  console.log(colors.cyan + colors.bright + 'âœ… CLAUDE COMPLIANCE PROOF' + colors.reset);
+  console.log(colors.white + 'â”œâ”€ Read config/system-config.md: VALIDATION_FRAMEWORK (lines 155-185)' + colors.reset);
+  console.log(colors.white + 'â”œâ”€ Read checkpoint-system.md: "NEVER skip approval gates" (line 74)' + colors.reset);
+  console.log(colors.white + 'â”œâ”€ Understands: Use existing approval gates, not new validation files' + colors.reset);
+  console.log(colors.white + 'â””â”€ Status: ' + colors.green + 'DOCUMENTATION REVIEWED & UNDERSTOOD' + colors.reset);
   console.log();
 }
 
@@ -186,66 +186,44 @@ function getStatusColor(status) {
   }
 }
 
-function displayBanner() {
-  console.log(colors.cyan + colors.bright);
-  console.log('  ███████╗███╗   ██╗████████╗███████╗██████╗ ██████╗ ██████╗ ██╗███████╗');
-  console.log('  ██╔════╝████╗  ██║╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██╔══██╗██║██╔════╝');
-  console.log('  █████╗  ██╔██╗ ██║   ██║   █████╗  ██████╔╝██████╔╝██████╔╝██║███████╗');
-  console.log('  ██╔══╝  ██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗██╔═══╝ ██╔══██╗██║╚════██║');
-  console.log('  ███████╗██║ ╚████║   ██║   ███████╗██║  ██║██║     ██║  ██║██║███████║');
-  console.log('  ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝');
-  console.log();
-  console.log(colors.white + colors.bright + '            🏢 ENTERPRISE UI BUILDER - ZERO TO APPLICATION 🏢');
-  console.log();
-  console.log(colors.white + '       Professional-grade software development with UI-first');
-  console.log(colors.white + '         methodology and enterprise intelligence systems');
-  console.log(colors.reset);
-  // ASCII fallback banner to ensure visibility in any terminal/viewer
-  console.log('============================================================');
-  console.log(' ENTERPRISE UI BUILDER - ZERO TO APPLICATION');
-  console.log(' Professional-grade software development with UI-first');
-  console.log(' methodology and enterprise intelligence systems');
-  console.log('============================================================');
-}
-
-function displaySystemInfo() {
+function displayBanner() {\n  console.log('============================================================');\n  console.log(' ENTERPRISE UI BUILDER - ZERO TO APPLICATION');\n  console.log(' Professional-grade software development with UI-first');\n  console.log(' methodology and enterprise intelligence systems');\n  console.log('============================================================');\n}\nfunction displaySystemInfo() {
   const sessionId = generateSessionId();
   const timestamp = getTimestamp();
   __entSessionId = sessionId;
   __entTimestamp = timestamp;
   const health = checkSystemHealth();
 
-  console.log(colors.green + colors.bright + '🔍 META-ANALYST ACTIVATION' + colors.reset);
-  console.log(colors.white + '├─ Session ID: ' + colors.yellow + sessionId + colors.reset);
-  console.log(colors.white + '├─ Timestamp: ' + colors.cyan + timestamp + colors.reset);
-  console.log(colors.white + '├─ Status: ' + colors.green + 'ACTIVE & MONITORING ALL SYSTEMS' + colors.reset);
-  console.log(colors.white + '└─ Intelligence: ' + colors.magenta + 'ENTERPRISE-GRADE ANALYSIS ENABLED' + colors.reset);
+  console.log(colors.green + colors.bright + 'ðŸ” META-ANALYST ACTIVATION' + colors.reset);
+  console.log(colors.white + 'â”œâ”€ Session ID: ' + colors.yellow + sessionId + colors.reset);
+  console.log(colors.white + 'â”œâ”€ Timestamp: ' + colors.cyan + timestamp + colors.reset);
+  console.log(colors.white + 'â”œâ”€ Status: ' + colors.green + 'ACTIVE & MONITORING ALL SYSTEMS' + colors.reset);
+  console.log(colors.white + 'â””â”€ Intelligence: ' + colors.magenta + 'ENTERPRISE-GRADE ANALYSIS ENABLED' + colors.reset);
   console.log();
 
-  console.log(colors.blue + colors.bright + '⚡ SYSTEM HEALTH' + colors.reset);
-  console.log(colors.white + '├─ Node.js: ' + colors.green + health.nodejs + colors.reset);
-  console.log(colors.white + '├─ Memory: ' + colors.yellow + health.memory + colors.reset);
-  console.log(colors.white + '├─ Platform: ' + colors.cyan + health.platform + colors.reset);
-  console.log(colors.white + '└─ Uptime: ' + colors.green + health.uptime + colors.reset);
+  console.log(colors.blue + colors.bright + 'âš¡ SYSTEM HEALTH' + colors.reset);
+  console.log(colors.white + 'â”œâ”€ Node.js: ' + colors.green + health.nodejs + colors.reset);
+  console.log(colors.white + 'â”œâ”€ Memory: ' + colors.yellow + health.memory + colors.reset);
+  console.log(colors.white + 'â”œâ”€ Platform: ' + colors.cyan + health.platform + colors.reset);
+  console.log(colors.white + 'â””â”€ Uptime: ' + colors.green + health.uptime + colors.reset);
   console.log();
 
-  // Lifecycle ↔ Protocol mapping reminder
-  console.log(colors.dim + 'Mapping: Stage 3 → Phases 1–8; Stage 6 → Phases 9–11' + colors.reset);
+  // Lifecycle â†” Protocol mapping reminder
+  console.log(colors.dim + 'Mapping: Stage 3 â†’ Phases 1â€“8; Stage 6 â†’ Phases 9â€“11' + colors.reset);
   console.log();
 }
 
 function displayProjects() {
   const projects = scanProjects();
 
-  console.log(colors.magenta + colors.bright + '📁 PROJECT STATUS' + colors.reset);
+  console.log(colors.magenta + colors.bright + 'ðŸ“ PROJECT STATUS' + colors.reset);
 
   if (projects.length === 0) {
-    console.log(colors.dim + '├─ No active projects found' + colors.reset);
-    console.log(colors.dim + '└─ Ready to start new enterprise development' + colors.reset);
+    console.log(colors.dim + 'â”œâ”€ No active projects found' + colors.reset);
+    console.log(colors.dim + 'â””â”€ Ready to start new enterprise development' + colors.reset);
   } else {
     projects.forEach((project, index) => {
       const isLast = index === projects.length - 1;
-      const prefix = isLast ? '└─' : '├─';
+      const prefix = isLast ? 'â””â”€' : 'â”œâ”€';
       const statusColor = getStatusColor(project.status);
 
       console.log(colors.white + prefix + ' ' + colors.bright + project.name + colors.reset +
@@ -256,21 +234,21 @@ function displayProjects() {
 }
 
 function displayQuickCommands() {
-  console.log(colors.yellow + colors.bright + '🚀 QUICK COMMANDS' + colors.reset);
-  console.log(colors.white + '├─ ' + colors.green + '/status' + colors.white + ' - View detailed system status' + colors.reset);
-  console.log(colors.white + '├─ ' + colors.green + '/new-project' + colors.white + ' - Start new enterprise project' + colors.reset);
-  console.log(colors.white + '├─ ' + colors.green + '/clone-website' + colors.white + ' - OneRedOak 11-phase Protocol 3.0 website cloning' + colors.reset);
-  console.log(colors.white + '├─ ' + colors.green + '/agents' + colors.white + ' - List available enterprise agents' + colors.reset);
-  console.log(colors.white + '└─ ' + colors.green + '/help' + colors.white + ' - Show full command reference' + colors.reset);
+  console.log(colors.yellow + colors.bright + 'ðŸš€ QUICK COMMANDS' + colors.reset);
+  console.log(colors.white + 'â”œâ”€ ' + colors.green + '/status' + colors.white + ' - View detailed system status' + colors.reset);
+  console.log(colors.white + 'â”œâ”€ ' + colors.green + '/new-project' + colors.white + ' - Start new enterprise project' + colors.reset);
+  console.log(colors.white + 'â”œâ”€ ' + colors.green + '/clone-website' + colors.white + ' - OneRedOak 11-phase Protocol 3.0 website cloning' + colors.reset);
+  console.log(colors.white + 'â”œâ”€ ' + colors.green + '/agents' + colors.white + ' - List available enterprise agents' + colors.reset);
+  console.log(colors.white + 'â””â”€ ' + colors.green + '/help' + colors.white + ' - Show full command reference' + colors.reset);
   console.log();
 }
 
 function displayFooter() {
-  console.log(colors.cyan + colors.dim + '────────────────────────────────────────────────────────────────────────' + colors.reset);
+  console.log(colors.cyan + colors.dim + 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€' + colors.reset);
   console.log(colors.white + '  Enterprise System: ' + colors.bright + 'Where enterprise-grade robustness meets consumer-grade ease' + colors.reset);
-  console.log(colors.cyan + colors.dim + '────────────────────────────────────────────────────────────────────────' + colors.reset);
+  console.log(colors.cyan + colors.dim + 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€' + colors.reset);
   console.log();
-  console.log(colors.green + '✅ System Ready - Awaiting Instructions' + colors.reset);
+  console.log(colors.green + 'âœ… System Ready - Awaiting Instructions' + colors.reset);
   console.log();
 }
 
@@ -307,7 +285,7 @@ function boot() {
     global.__ENT_BOOTING = true;
     require('./auto-loader.js');
   } catch (error) {
-    console.log(colors.red + '⚠️ Warning: Could not load meta-analyst core - ' + error.message + colors.reset);
+    console.log(colors.red + 'âš ï¸ Warning: Could not load meta-analyst core - ' + error.message + colors.reset);
   }
 }
 
