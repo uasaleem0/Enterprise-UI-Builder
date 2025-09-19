@@ -26,7 +26,8 @@ function aggregate(struct){
   const h1 = struct?.typography?.h1 || null;
   const h2 = struct?.typography?.h2 || null;
   const h3 = struct?.typography?.h3 || null;
-  return { accent, pageBg, font, bodySize, h1, h2, h3 };
+  const heroPad = pick(struct?.sections?.hero?.paddingTop, '3rem');
+  return { accent, pageBg, font, bodySize, h1, h2, h3, heroPad };
 }
 
 function cssVariables(tokens){
@@ -39,6 +40,7 @@ function cssVariables(tokens){
   if (tokens.h1?.fontSize) lines.push(`  --fs-h1: ${tokens.h1.fontSize};`);
   if (tokens.h2?.fontSize) lines.push(`  --fs-h2: ${tokens.h2.fontSize};`);
   if (tokens.h3?.fontSize) lines.push(`  --fs-h3: ${tokens.h3.fontSize};`);
+  if (tokens.heroPad) lines.push(`  --pad-hero: ${tokens.heroPad};`);
   lines.push('}');
   lines.push('body{ background: var(--page-bg); font-family: var(--font); font-size: var(--fs-body,16px); }');
   lines.push('h1{ font-size: var(--fs-h1,2rem); }');

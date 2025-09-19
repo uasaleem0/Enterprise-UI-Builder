@@ -185,21 +185,7 @@ async function runOrchestration(targetUrl, opts = {}) {
   }
 
   // 3) Execute Protocol 3.0 with explicit localUrl and projectPath
-  let result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity });
-
-  // 4) Minimal iterative patching: if similarity below target, try re-synthesis (no-op if already synthesized)
-  const targetSim = parseInt(opts.targetSimilarity || '90', 10);
-  if (!result.success && (result.finalSimilarity || 0) < targetSim) {
-    try {
-      const s2 = await synthesizeFromExtraction(projectPath);
-      if (s2.ok) {
-        console.log('[iterate] Re-synthesized candidate; re-running validation once');
-        result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity });
-      }
-    } catch {}
-  }
-
-  // Stop server
+  let result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity });\n  // 4) Iterative patching: re-synthesis, content, tokens (one pass each if needed)\n  if (!result.success && (result.finalSimilarity || 0) < targetSim) {\n    try { const s2 = await synthesizeFromExtraction(projectPath); if (s2.ok) { console.log('[iterate] Re-synthesized candidate; re-validate'); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); } } catch {}\n    try { const { patchContentFromExtraction } = require('./patcher-content'); const pc = await patchContentFromExtraction(projectPath); if (pc.changed) { console.log([iterate] Page content patched (); re-validate); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); } } catch {}\n    try { const { patchTokens } = require('./patcher'); const pr = await patchTokens(projectPath); if (pr.changed) { console.log('[iterate] Tokens patched; re-validate'); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); } } catch {}\n  }\n\n  // Stop server
   if (server) {
     await new Promise(resolve => server.close(() => resolve()));
     console.log('[orchestrator] Server stopped');
