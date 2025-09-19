@@ -210,6 +210,12 @@ async function runOrchestration(targetUrl, opts = {}) {
       console.log(`[validation] Multi-viewport summary: ${mv.summaryPath}`);
     }
   } catch {}
+  // Link/asset integrity
+  try {
+    const { validateIntegrity } = require('./validate-integrity');
+    const iv = await validateIntegrity(projectPath, localUrl, path.join(projectPath, 'evidence', 'validation'));
+    if (iv && iv.reportPath) console.log(`[validation] Integrity: ${iv.reportPath}`);
+  } catch {}
 
   // 6) Budgets & gating (a11y/perf/multi-viewport) if ENT_ENFORCE_BUDGETS=1
   try {
