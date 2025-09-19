@@ -58,14 +58,25 @@ async function extractStructure(targetUrl) {
       const style = window.getComputedStyle(document.body);
       const bg = style.getPropertyValue('background-color') || null;
       const ff = style.getPropertyValue('font-family') || null;
+      const bodyFs = style.getPropertyValue('font-size') || null;
       const a = document.querySelector('a');
       const aStyle = a ? window.getComputedStyle(a) : null;
       const linkColor = aStyle ? aStyle.getPropertyValue('color') : null;
+      const getFirstStyle = (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        const cs = window.getComputedStyle(el);
+        return { fontSize: cs.getPropertyValue('font-size')||null, fontWeight: cs.getPropertyValue('font-weight')||null, lineHeight: cs.getPropertyValue('line-height')||null };
+      };
+      const h1 = getFirstStyle('h1');
+      const h2 = getFirstStyle('h2');
+      const h3 = getFirstStyle('h3');
       return {
         headings: getTextList('h1, h2, h3', 12),
         nav: getTextList('nav a, header a', 16),
         ctas: getTextList('a[role="button"], button, .btn, [class*="button"]', 12),
-        visual: { bodyBackground: bg, bodyFont: ff, linkColor }
+        visual: { bodyBackground: bg, bodyFont: ff, bodyFontSize: bodyFs, linkColor },
+        typography: { h1, h2, h3 }
       };
     });
     return { ok: true, data };

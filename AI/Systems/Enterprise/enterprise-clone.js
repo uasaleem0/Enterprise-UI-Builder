@@ -51,11 +51,15 @@ async function main() {
     else if (a === '--enforce-budgets') process.env.ENT_ENFORCE_BUDGETS = '1';
     else if (a === '--crawl-limit') opts.crawlLimit = args[++i];
     else if (a === '--describe') opts.describe = args[++i];
+    else if (a === '--auth') opts.auth = true;
+    else if (a === '--no-auth') opts.auth = false;
+    else if (a === '--deploy') opts.deploy = true;
   }
 
   // Defaults per your preferences
   if (!process.env.ENT_ENFORCE_BUDGETS) process.env.ENT_ENFORCE_BUDGETS = '1';
   if (!opts.crawlLimit) opts.crawlLimit = 8;
+  if (opts.auth === undefined && !!opts.describe) opts.auth = true;
 
   // Prefer plain output on Windows
   if (process.platform === 'win32' && !process.env.ENT_PLAIN) {

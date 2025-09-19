@@ -168,7 +168,7 @@ async function runOrchestration(targetUrl, opts = {}) {
     try {
       // If we synthesized multi-page, prefer Next multi-page layout
       try { const extraction = require(path.join(process.cwd(), projectPath, 'evidence','extraction','extraction.json')); } catch {}
-      const nx = await bootstrapNext(projectPath, synthesizedHtml, port);
+      const nx = await bootstrapNext(projectPath, synthesizedHtml, port, { auth: !!opts.auth });
       if (nx.ok && nx.proc) {
         nextProc = nx.proc;
         console.log(`[orchestrator] Next.js dev server starting on ${localUrl}`);
@@ -232,6 +232,19 @@ async function runOrchestration(targetUrl, opts = {}) {
     if (gated && gated.updated) {
       result = gated.result;
       console.log(`[gating] Budgets applied: success=${result.success}`);
+    }
+  } catch {}
+
+  // 7) Optional deploy
+  try {
+    if (opts.deploy) {
+      const { deployVercel } = require('./deploy');
+      const dep = await deployVercel(projectPath, false);
+      if (dep.ok) {
+        console.log(`[deploy] Vercel preview: ${dep.url || 'see output'}`);
+      } else {
+        console.log('[deploy] Skipped or failed');
+      }
     }
   } catch {}
 

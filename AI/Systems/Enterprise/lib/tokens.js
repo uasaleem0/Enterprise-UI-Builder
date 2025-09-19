@@ -22,11 +22,30 @@ function aggregate(struct){
   const accent = pick(struct?.visual?.linkColor, '#1e40af');
   const pageBg = pick(struct?.visual?.bodyBackground, '#ffffff');
   const font = pick(struct?.visual?.bodyFont, 'system-ui, Segoe UI, Roboto, Arial, sans-serif');
-  return { accent, pageBg, font };
+  const bodySize = pick(struct?.visual?.bodyFontSize, '16px');
+  const h1 = struct?.typography?.h1 || null;
+  const h2 = struct?.typography?.h2 || null;
+  const h3 = struct?.typography?.h3 || null;
+  return { accent, pageBg, font, bodySize, h1, h2, h3 };
 }
 
 function cssVariables(tokens){
-  return `:root{\n  --accent: ${tokens.accent};\n  --page-bg: ${tokens.pageBg};\n  --font: ${tokens.font};\n}\nbody{ background: var(--page-bg); font-family: var(--font); }\n`;
+  const lines = [];
+  lines.push(':root{');
+  lines.push(`  --accent: ${tokens.accent};`);
+  lines.push(`  --page-bg: ${tokens.pageBg};`);
+  lines.push(`  --font: ${tokens.font};`);
+  if (tokens.bodySize) lines.push(`  --fs-body: ${tokens.bodySize};`);
+  if (tokens.h1?.fontSize) lines.push(`  --fs-h1: ${tokens.h1.fontSize};`);
+  if (tokens.h2?.fontSize) lines.push(`  --fs-h2: ${tokens.h2.fontSize};`);
+  if (tokens.h3?.fontSize) lines.push(`  --fs-h3: ${tokens.h3.fontSize};`);
+  lines.push('}');
+  lines.push('body{ background: var(--page-bg); font-family: var(--font); font-size: var(--fs-body,16px); }');
+  lines.push('h1{ font-size: var(--fs-h1,2rem); }');
+  lines.push('h2{ font-size: var(--fs-h2,1.5rem); }');
+  lines.push('h3{ font-size: var(--fs-h3,1.25rem); }');
+  lines.push('');
+  return lines.join('\n');
 }
 
 async function generateTokens(projectPath) {
@@ -43,4 +62,3 @@ async function generateTokens(projectPath) {
 }
 
 module.exports = { generateTokens };
-
