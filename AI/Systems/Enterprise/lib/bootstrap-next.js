@@ -93,6 +93,8 @@ async function bootstrapNext(projectPath, synthesizedHtml, port, options = {}) {
     } catch {}
     await fsp.writeFile(path.join(stylesDir, 'globals.css'), globals, 'utf8');
   } catch {}
+  // Attempt to generate Tailwind theme from tokens
+  try { const { writeTailwindConfig } = require('./tailwind-theme'); await writeTailwindConfig(projectPath); } catch {}
   const installed = await installDeps(projectPath);
   if (!installed) return { ok: false, note: 'deps-install-failed' };
   const proc = startNextDev(projectPath, port);

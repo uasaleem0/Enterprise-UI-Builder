@@ -216,6 +216,16 @@ async function runOrchestration(targetUrl, opts = {}) {
     const iv = await validateIntegrity(projectPath, localUrl, path.join(projectPath, 'evidence', 'validation'));
     if (iv && iv.reportPath) console.log(`[validation] Integrity: ${iv.reportPath}`);
   } catch {}
+  // Structure validation (counts)
+  try {
+    const extracted = require(path.join(projectPath,'evidence','extraction','extraction.json'));
+    const { validateStructure } = require('./validate-structure');
+    const sv = await validateStructure(extracted, localUrl);
+    const p = path.join(projectPath,'evidence','validation','dom-parity.json');
+    await fsp.mkdir(path.dirname(p),{recursive:true});
+    await fsp.writeFile(p, JSON.stringify(sv,null,2),'utf8');
+    console.log(`[validation] DOM parity: ${p}`);
+  } catch {}
 
   // 6) Budgets & gating (a11y/perf/multi-viewport) if ENT_ENFORCE_BUDGETS=1
   try {
@@ -239,6 +249,18 @@ async function runOrchestration(targetUrl, opts = {}) {
       }
     }
   } catch {}
+
+  // 7b) Optional rollback
+  try {
+    if (opts.rollback) {
+      const { rollbackVercel } = require('./rollback');
+      const rb = await rollbackVercel(projectPath);
+      console.log(rb.ok ? '[deploy] Rollback executed' : '[deploy] Rollback failed or unavailable');
+    }
+  } catch {}
+
+  // 8) Evidence index
+  try { const { writeEvidenceIndex } = require('./evidence-index'); const idx = await writeEvidenceIndex(projectPath); console.log(`[evidence] Index: ${idx}`); } catch {}
 
   return { projectPath, localUrl, result, logPath };
 }
