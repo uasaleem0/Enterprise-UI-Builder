@@ -28,13 +28,15 @@ async function initPackage(projectPath) {
 }
 
 async function installDeps(projectPath) {
-  return new Promise((resolve) => {
-    const proc = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['i', 'next', 'react', 'react-dom', '--silent', '--no-audit', '--no-fund'], { cwd: projectPath, stdio: 'ignore' });
-    let done = false;
-    const timeout = setTimeout(() => { if (!done) { try { proc.kill(); } catch {} resolve(false); } }, 180000);
+  const run = (args, ms=180000) => new Promise((resolve) => {
+    const proc = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, { cwd: projectPath, stdio: 'ignore' });
+    let done = false; const timeout = setTimeout(() => { if (!done) { try { proc.kill(); } catch {} resolve(false); } }, ms);
     proc.on('exit', (code) => { done = true; clearTimeout(timeout); resolve(code === 0); });
     proc.on('error', () => { done = true; clearTimeout(timeout); resolve(false); });
   });
+  const ok1 = await run(['i', 'next', 'react', 'react-dom', '--silent', '--no-audit', '--no-fund']);
+  const ok2 = await run(['i', '-D', 'tailwindcss', 'postcss', 'autoprefixer', '--silent', '--no-audit', '--no-fund']);
+  return ok1 && ok2;
 }
 
 async function scaffoldNext(projectPath, synthesizedHtml) {
@@ -66,7 +68,10 @@ async function bootstrapNext(projectPath, synthesizedHtml, port) {
     await ensureDir(stylesDir);
     const appJs = "import '../styles/globals.css';\nexport default function MyApp({ Component, pageProps }){ return <Component {...pageProps} /> }\n";
     await fsp.writeFile(path.join(projectPath, 'pages', '_app.js'), appJs, 'utf8');
-    let globals = ":root{--accent:#1e40af;--page-bg:#ffffff;--font:system-ui,Segoe UI,Roboto,Arial,sans-serif;} body{background:var(--page-bg);font-family:var(--font);}\n";
+    // Tailwind + tokens
+    await fsp.writeFile(path.join(projectPath, 'tailwind.config.js'), "module.exports = { content: ['./pages/**/*.{js,jsx,ts,tsx}','./components/**/*.{js,jsx,ts,tsx}'], theme: { extend: {} }, plugins: [] };\n", 'utf8');
+    await fsp.writeFile(path.join(projectPath, 'postcss.config.js'), "module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } };\n", 'utf8');
+    let globals = "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n:root{--accent:#1e40af;--page-bg:#ffffff;--font:system-ui,Segoe UI,Roboto,Arial,sans-serif;}\nbody{background:var(--page-bg);font-family:var(--font);}\n";
     try {
       const tokensCssPath = path.join(projectPath, 'tokens', 'tokens.css');
       const tokensCss = await fsp.readFile(tokensCssPath, 'utf8');

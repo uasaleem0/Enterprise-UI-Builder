@@ -60,6 +60,13 @@ async function synthesizeNext(projectPath, site, struct, theme) {
   await ensureDir(pagesDir);
   // Write shared layout
   await fsp.writeFile(path.join(pagesDir, '_layout.js'), layoutJs(theme, struct?.nav || []), 'utf8');
+  // Write simple components (Header/Hero/CardGrid/Footer) using Tailwind
+  const compDir = path.join(projectPath, 'components');
+  await ensureDir(compDir);
+  await fsp.writeFile(path.join(compDir, 'Header.js'), "export default function Header({title='Enterprise Candidate'}){ return (<header className='flex items-center justify-between py-4'><div className='font-bold'>{title}</div></header>); }\n", 'utf8');
+  await fsp.writeFile(path.join(compDir, 'Hero.js'), "export default function Hero({heading='Welcome', ctas=[]}){ return (<section className='rounded-md bg-[rgba(0,0,0,0.02)] py-12'><h1 className='text-3xl mb-2'>{heading}</h1><p>Generated from extraction artifacts. Accent color and font applied.</p><div className='mt-3 space-x-3'>{ctas.slice(0,2).map((t,i)=>(<a key={i} href='#' className='inline-block text-white px-4 py-2 rounded-md' style={{background:'var(--accent)'}}>{t}</a>))}</div></section>); }\n", 'utf8');
+  await fsp.writeFile(path.join(compDir, 'CardGrid.js'), "export default function CardGrid({items=[]}){ return (<div className='grid grid-cols-1 md:grid-cols-3 gap-4 my-6'>{items.slice(0,6).map((t,i)=>(<div key={i} className='p-4 border rounded-md bg-white/60'>{t}</div>))}</div>); }\n", 'utf8');
+  await fsp.writeFile(path.join(compDir, 'Footer.js'), "export default function Footer(){ return (<footer className='py-6 text-gray-600'>Enterprise System · Candidate</footer>); }\n", 'utf8');
   // Write pages from site map
   const list = site.pages && site.pages.length ? site.pages : [{ url: 'http://localhost:3000/', title: struct?.headings?.[0] || 'Home' }];
   for (const p of list) {
@@ -74,4 +81,3 @@ async function synthesizeNext(projectPath, site, struct, theme) {
 }
 
 module.exports = { synthesizeNext };
-
