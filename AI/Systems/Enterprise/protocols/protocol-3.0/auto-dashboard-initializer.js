@@ -1,159 +1,79 @@
-﻿const { EnhancedVisualDashboard } = require('./dashboard/enhanced-visual-dashboard.js');
+const { EnhancedVisualDashboard } = require('./dashboard/enhanced-visual-dashboard.js');
 
 class AutoDashboardInitializer {
   constructor() {
     this.dashboard = null;
     this.isInitialized = false;
-    this.activeSession = null;\n    this._autosaveTimer = null;
-
-    // Auto-initialize when this class is instantiated
+    this.activeSession = null;
+    this._autosaveTimer = null;
     this.initialize();
   }
 
-  // Initialize dashboard system
   initialize() {
     if (!this.isInitialized) {
       this.dashboard = new EnhancedVisualDashboard();
       this.isInitialized = true;
-      console.log('ðŸŽ¯ Auto-Dashboard Initializer: READY');
+      console.log('[dashboard] Ready');
     }
   }
 
-  // Automatically start dashboard for any website cloning session
   startAutoDashboard(projectName, targetUrl, projectPath) {
-    if (!this.isInitialized) {
-      this.initialize();
-    }
-
-    // Start the enhanced dashboard session
+    if (!this.isInitialized) this.initialize();
     this.dashboard.startSession(projectName, targetUrl);
-
-    this.activeSession = {
-      projectName,
-      targetUrl,
-      projectPath,
-      startTime: new Date()
-    };
-
-    // Setup auto-save interval
+    this.activeSession = { projectName, targetUrl, projectPath, startTime: new Date() };
     this.setupAutoSave();
-
-    console.log(`ðŸš€ Auto-Dashboard ACTIVATED for: ${projectName}`);
+    console.log(`[dashboard] Active for: ${projectName}`);
     return this.dashboard;
   }
 
-  // Get the active dashboard instance
-  getDashboard() {
-    if (!this.isInitialized) {
-      this.initialize();
-    }
-    return this.dashboard;
-  }
+  getDashboard() { if (!this.isInitialized) this.initialize(); return this.dashboard; }
 
-  // Setup automatic session saving
   setupAutoSave() {
+    if (this._autosaveTimer) { try { clearInterval(this._autosaveTimer); } catch {} this._autosaveTimer = null; }
     if (this.activeSession && this.activeSession.projectPath) {
-      const intervalMs = parseInt(process.env.ENT_AUTOSAVE_MS || '180000', 10); // default 3 min
-      setInterval(() => {
-        if (this.dashboard && this.activeSession) {
-          this.dashboard.autoSaveSession(this.activeSession.projectPath);
-        }
-      }, intervalMs);
+      const ms = parseInt(process.env.ENT_AUTOSAVE_MS || '180000', 10);
+      this._autosaveTimer = setInterval(() => {
+        try { this.dashboard.autoSaveSession(this.activeSession.projectPath); } catch {}
+      }, ms);
     }
   }
 
-  // Auto-detect and initialize dashboard for any Protocol 3.0 execution
   autoDetectAndInitialize(targetUrl) {
-    // Extract project name from URL
     const projectName = this.extractProjectName(targetUrl);
     const projectPath = this.generateProjectPath(projectName);
-
-    console.log('ðŸ” Auto-detecting website cloning session...');
+    console.log('[dashboard] Auto-detecting session...');
     return this.startAutoDashboard(projectName, targetUrl, projectPath);
   }
 
-  // Extract project name from URL
   extractProjectName(url) {
-    try {
-      const urlObj = new URL(url);
-      const domain = urlObj.hostname.replace('www.', '');
-      return domain.split('.')[0] + '-clone';
-    } catch (error) {
-      return 'website-clone-' + Date.now();
-    }
+    try { const u = new URL(url); const domain = u.hostname.replace('www.',''); return domain.split('.')[0] + '-clone'; } catch { return 'website-clone-' + Date.now(); }
   }
 
-  // Generate project path
   generateProjectPath(projectName) {
-    const path = require('path');
-    return path.join(process.cwd(), 'projects', projectName);
+    const p = require('path');
+    return p.join(process.cwd(), 'projects', projectName);
   }
 
-  // Integration hooks for Protocol 3.0
   getIntegrationHooks() {
     return {
-      onPhaseStart: (phaseNumber, phaseName) => {
+      onPhaseStart: (n, name) => { /* noop */ },
+      onPhaseComplete: (n, data) => {
         if (this.dashboard) {
-          console.log(`ðŸ”„ Phase ${phaseNumber} Starting: ${phaseName}`);
+          this.dashboard.recordPhaseCompletion(n, data);
+          if (this.activeSession?.projectPath) this.dashboard.autoSaveSession(this.activeSession.projectPath);
         }
       },
-
-      onPhaseComplete: (phaseNumber, phaseData) => {
-        if (this.dashboard) {
-          this.dashboard.recordPhaseCompletion(phaseNumber, phaseData);
-          // Save immediately on phase completion to reduce risk of data loss
-          if (this.activeSession && this.activeSession.projectPath) {
-            this.dashboard.autoSaveSession(this.activeSession.projectPath);
-          }
-        }
-      },
-
-      onIteration: (phaseNumber, iterationData) => {
-        if (this.dashboard) {
-          this.dashboard.recordIteration(phaseNumber, iterationData);
-        }
-      },
-
-      onSessionComplete: () => {
-        if (this.dashboard) {
-          const report = this.dashboard.generateFinalReport();
-          console.log('ðŸŽ‰ Session completed with dashboard tracking!');
-          return report;
-        }
-      }
+      onIteration: (n, iter) => { if (this.dashboard) this.dashboard.recordIteration(n, iter); },
+      onSessionComplete: () => { if (this.dashboard) return this.dashboard.generateFinalReport(); }
     };
   }
 
-  // Check if dashboard is active
-  isActive() {
-    return this.isInitialized && this.activeSession !== null;
-  }
-
-  // Get session info
-  getSessionInfo() {
-    return this.activeSession;
-  }
+  isActive() { return this.isInitialized && this.activeSession !== null; }
+  getSessionInfo() { return this.activeSession; }
 }
 
-// Global instance for auto-initialization
 let globalDashboardInitializer = null;
+function getGlobalDashboard() { if (!globalDashboardInitializer) globalDashboardInitializer = new AutoDashboardInitializer(); return globalDashboardInitializer; }
+function autoInitializeDashboard(targetUrl) { const init = getGlobalDashboard(); return init.autoDetectAndInitialize(targetUrl); }
 
-// Factory function to ensure single instance
-function getGlobalDashboard() {
-  if (!globalDashboardInitializer) {
-    globalDashboardInitializer = new AutoDashboardInitializer();
-  }
-  return globalDashboardInitializer;
-}
-
-// Auto-detect and initialize for any website cloning operation
-function autoInitializeDashboard(targetUrl) {
-  const initializer = getGlobalDashboard();
-  return initializer.autoDetectAndInitialize(targetUrl);
-}
-
-module.exports = {
-  AutoDashboardInitializer,
-  getGlobalDashboard,
-  autoInitializeDashboard
-};
+module.exports = { AutoDashboardInitializer, getGlobalDashboard, autoInitializeDashboard };
