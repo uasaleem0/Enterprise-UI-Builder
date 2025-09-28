@@ -1,4 +1,3 @@
-﻿#!/usr/bin/env node
 
 /**
  * Protocol 3.0 Launcher (ASCII-first)
@@ -6,7 +5,12 @@
  */
 
 const os = require('os');
+// Install progress-only filter if requested
+try { require('./lib/progress-filter').installProgressFilter(); } catch {}
 const { executeProtocol30 } = require('./protocols/protocol-3.0/integrated-protocol-3.0.js');
+const path = require('path');
+const { probeServer, startProjectServer } = require('./lib/server-manager');
+const { appendEvent } = require('./lib/logger');
 
 // Default configuration
 const DEFAULT_CONFIG = {
@@ -17,14 +21,15 @@ const DEFAULT_CONFIG = {
 };
 
 // Prefer plain output on Windows unless overridden
-if (process.platform === 'win32' && !process.env.ENT_PLAIN) {
-  process.env.ENT_PLAIN = '1';
-}
+if (process.platform === 'win32' && !process.env.ENT_PLAIN) process.env.ENT_PLAIN = '1';
+// Force verbose by default (allow user override if explicitly set)
+if (typeof process.env.ENT_QUIET === 'undefined') process.env.ENT_QUIET = '0';
+if (typeof process.env.DEBUG === 'undefined') process.env.DEBUG = '1';
 
 function printUsage() {
   const lines = [
     '============================================',
-    ' Protocol 3.0 Launcher',
+    ' Protocol 30 Launcher',
     '============================================',
     'Usage: node launch-protocol30.js <website-url> [options]',
     '',
@@ -76,19 +81,86 @@ for (let i = 1; i < args.length; i++) {
   else if (arg === '--local') { config.localUrl = args[++i]; }
 }
 
-preflight();
-console.log('\nStarting Protocol 3.0...');
+async function main() {
+  try {
+    preflight();
 
-executeProtocol30(targetUrl, config)
-  .then(result => {
-    console.log('\nProtocol 3.0 Complete');
+    console.log('\nStarting Protocol 30...');
+
+    // Determine project path - prioritize existing projects
+    const localUrl = config.localUrl || 'http://localhost:3000';
+    let projectName = config.projectName;
+    let inferredProjectPath = null;
+    
+    // First priority: use specified project name if it exists
+    if (projectName) {
+      const projectsDir = path.join(process.cwd(), 'projects');
+      const specifiedPath = path.join(projectsDir, projectName);
+      if (fsExists(specifiedPath)) {
+        inferredProjectPath = specifiedPath;
+        console.log(`[project] Using existing project: ${projectName}`);
+      }
+    }
+    
+    // Second priority: check for TWP-website (common project)
+    if (!inferredProjectPath) {
+      const projectsDir = path.join(process.cwd(), 'projects');
+      const twpPath = path.join(projectsDir, 'TWP-website');
+      if (fsExists(twpPath)) {
+        inferredProjectPath = twpPath;
+        projectName = 'TWP-website';
+        console.log(`[project] Using existing TWP-website project`);
+      }
+    }
+
+    // Ensure local server is running (auto-start if needed)
+    const ok = await probeServer(localUrl, { timeoutMs: 3000, log: s => console.log(s) });
+    let server = null;
+    if (!ok) {
+      console.log(`[server] Not reachable at ${localUrl}. Attempting auto-start...`);
+      const projectPath = inferredProjectPath || path.join(process.cwd(), 'projects', 'TWP-website');
+      await safeAppend(projectPath, { level: 'info', stage: 'serve', msg: 'auto-start-begin', url: localUrl });
+      server = await startProjectServer(projectPath, parseInt((new URL(localUrl)).port || '3000', 10), { projectName });
+      const up = await probeServer(localUrl, { timeoutMs: 20000, log: s => console.log(s) });
+      if (!up) {
+        const msg = `[fatal] Local preview not reachable after auto-start: ${localUrl}`;
+        console.error(msg);
+        if (server && server.stop) try { await server.stop(); } catch {}
+        await safeAppend(projectPath, { level: 'error', stage: 'serve', msg: 'auto-start-failed', url: localUrl });
+        process.exit(1);
+      }
+      await safeAppend(projectPath, { level: 'info', stage: 'serve', msg: 'auto-start-success', url: localUrl });
+    }
+
+    // Pass project configuration to protocol
+    const protocolConfig = {
+      ...config,
+      projectName: projectName,
+      projectPath: inferredProjectPath
+    };
+    
+    const result = await executeProtocol30(targetUrl, protocolConfig);
+
+    console.log('\nProtocol 30 Complete');
     console.log(`  Success: ${result.success}`);
     console.log(`  Final Similarity: ${result.finalSimilarity}%`);
     console.log(`  Performance Grade: ${result.performanceGrade}`);
     console.log(`  Project Path: ${result.projectPath}`);
-  })
-  .catch(error => {
-    console.error('\nProtocol 3.0 Failed:');
+
+  } catch (error) {
+    console.error('\nProtocol 30 Failed:');
     console.error(error && error.message ? error.message : String(error));
+    // Clear failure summary
+    console.error('----------------------------------------');
+    console.error('Failure Summary:');
+    console.error(`  Reason: ${error.message || String(error)}`);
+    console.error('  Hints: ensure local preview is reachable or allow auto-start');
+    console.error('----------------------------------------');
     process.exit(1);
-  });
+  }
+}
+
+function fsExists(p) { try { return require('fs').existsSync(p); } catch { return false; } }
+async function safeAppend(projectPath, event) { try { await appendEvent(projectPath, event); } catch {} }
+
+main();

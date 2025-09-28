@@ -8,6 +8,8 @@
  */
 
 const os = require('os');
+// Install progress-only filter if requested
+try { require('./lib/progress-filter').installProgressFilter(); } catch {}
 const { runOrchestration } = require('./lib/clone-orchestrator');
 
 function printHelp() {

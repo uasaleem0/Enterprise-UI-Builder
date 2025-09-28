@@ -7,19 +7,9 @@
 const fs = require('fs');
 const fsp = require('fs').promises;
 const path = require('path');
-const http = require('http');
+// Orchestrator delegates execution to Protocol 3.0 after preflight/setup
 const { executeProtocol30 } = require('../protocols/protocol-3.0/integrated-protocol-3.0.js');
-const { extractTarget } = require('./extractor');
-const { synthesizeFromExtraction } = require('./synthesis');
-const { extractPages } = require('./extract-pages');
-const { generateTokens } = require('./tokens');
-const { synthesizeNext } = require('./synthesize-next');
-const { bootstrapNext } = require('./bootstrap-next');
-const { crawl, saveSiteMap } = require('./crawler');
 const { buildPrd, savePrd } = require('./prd');
-// Ensure visual engines/adapters are wired
-try { require('../hooks/microsoft-sim-adapter.js'); } catch {}
-try { require('../hooks/playwright-mcp-adapter.js'); } catch {}
 const { runPreflight } = require('./preflight');
 const { appendEvent } = require('./logger');
 
@@ -41,7 +31,7 @@ function stopHeartbeat(hb, stage) {
   if (hb && hb.t) clearInterval(hb.t);
   if (process.env.ENT_QUIET !== '1') {
     const elapsed = hb ? fmtSecs(nowMs()-hb.start) : '0s';
-    console.log(`\n[done] ${stage} (${elapsed})`);
+    console.log(`[done] ${stage} (${elapsed})`);
   }
 }
 
@@ -89,10 +79,55 @@ async function writeCandidate(projectPath, port){
 }
 
 function createServer(projectPath, port){
-  const indexPath = path.join(projectPath, 'index.html');
   const server = http.createServer((req,res)=>{
-    try { const html = fs.readFileSync(indexPath,'utf8'); res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}); res.end(html); }
-    catch { res.writeHead(500,{'Content-Type':'text/plain'}); res.end('Server error'); }
+    try {
+      const url = decodeURIComponent(req.url || '/');
+      let relPath = (url.split('?')[0] || '/');
+      if (relPath === '/' || relPath === '') relPath = 'index.html';
+      // Prevent path traversal
+      const safeRel = path.normalize(relPath).replace(/^([.][.][\\/])+/, '');
+      const filePath = path.join(projectPath, safeRel);
+      const projectNorm = path.normalize(projectPath + path.sep);
+      const fileNorm = path.normalize(filePath);
+      if (!fileNorm.startsWith(projectNorm)) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end('Forbidden');
+        return;
+      }
+      const ext = path.extname(filePath).toLowerCase();
+      const contentTypes = {
+        '.html': 'text/html; charset=utf-8',
+        '.css': 'text/css',
+        '.js': 'application/javascript',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.svg': 'image/svg+xml',
+        '.webp': 'image/webp',
+        '.woff2': 'font/woff2',
+        '.woff': 'font/woff',
+        '.ttf': 'font/ttf'
+      };
+      const type = contentTypes[ext] || 'application/octet-stream';
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        res.writeHead(200, { 'Content-Type': type });
+        res.end(fs.readFileSync(filePath));
+      } else {
+        // Fallback: serve index.html for unknown routes (SPA-like)
+        const indexPath = path.join(projectPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(fs.readFileSync(indexPath, 'utf8'));
+        } else {
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Not found');
+        }
+      }
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Server error');
+    }
   });
   return new Promise(resolve=> server.listen(port,()=>resolve(server)));
 }
@@ -108,8 +143,25 @@ async function runOrchestration(targetUrl, opts = {}){
   const projectPath = path.join(projectsRoot, projectName);
   const backupsRoot = path.join(baseDir, '.backups', 'projects');
   await ensureDir(backupsRoot);
-  const backupPath = await backupIfExists(projectPath, backupsRoot);
-  if (backupPath) { console.log(`[backup] Existing project backed up to: ${backupPath}`); await appendEvent(projectPath, { level:'info', stage:'backup', msg:'backup-created', path: backupPath }); }
+  // Backup once per top-level run: skip if marker exists or disabled by env
+  const backupMarker = path.join(projectPath, '.backup-done');
+  let backupPath = null;
+  try {
+    const noBackups = process.env.ENT_NO_BACKUPS === '1';
+    const hasMarker = fs.existsSync(backupMarker);
+    if (!noBackups && !hasMarker) {
+      backupPath = await backupIfExists(projectPath, backupsRoot);
+      if (backupPath) {
+        console.log(`[backup] Existing project backed up to: ${backupPath}`);
+        await appendEvent(projectPath, { level:'info', stage:'backup', msg:'backup-created', path: backupPath });
+        try { await fsp.writeFile(backupMarker, String(Date.now()), 'utf8'); } catch {}
+      }
+    } else if (hasMarker) {
+      console.log('[backup] Skipped (marker present)');
+    } else if (noBackups) {
+      console.log('[backup] Skipped (ENT_NO_BACKUPS=1)');
+    }
+  } catch {}
 
   // Optional PRD persist for app flow
   try { if (opts.describe) { const prd = buildPrd(opts.describe); const prdPaths = await savePrd(projectPath, prd); console.log(`[prd] Saved: ${prdPaths.mdPath}`); await appendEvent(projectPath, { level:'info', stage:'prd', msg:'saved', md: prdPaths.mdPath }); } } catch {}
@@ -122,9 +174,13 @@ async function runOrchestration(targetUrl, opts = {}){
       console.log('[preflight]', JSON.stringify(pf.rows));
       if (pf.warnings?.length) console.log('[preflight-warn]', pf.warnings.join(' | '));
     }
-    // Critical fail if Playwright or ms-similarity adapter missing
-    const need = ['Playwright','ms-similarity-adapter'];
-    const missing = pf.rows.filter(r=>need.includes(r.label) && !r.ok).map(r=>r.label);
+    // Critical fail if Playwright missing or no visual engine (ms-sim or MCP) available
+    const hasPlaywright = pf.rows.find(r=>r.label==='Playwright')?.ok;
+    const hasMs = pf.rows.find(r=>r.label==='ms-similarity-adapter')?.ok;
+    const hasMcp = pf.rows.find(r=>r.label==='mcp-visual-validator')?.ok;
+    const missing = [];
+    if (!hasPlaywright) missing.push('Playwright');
+    if (!(hasMs || hasMcp)) missing.push('visual-engine');
     if (missing.length) {
       const msg = `[fatal] Missing critical visual requirements: ${missing.join(', ')}`;
       console.log(msg);
@@ -133,121 +189,71 @@ async function runOrchestration(targetUrl, opts = {}){
     }
   } catch {}
 
-  // Crawl (clone) and extract
-  let site = { pages: [] };
+  // Delegate to Protocol 3.0 for cloning/validation/iteration
   try {
-    if (process.env.ENT_QUIET !== '1') console.log('[stage] crawl');
-    const r = await withTimeout(() => crawl(targetUrl, parseInt(opts.crawlLimit || '8',10)), 120000, 'crawl', projectPath);
-    if (!r || r.__timeout) throw new Error('crawl-timeout');
-    site = r; const sm = await saveSiteMap(projectPath, site);
-    if (process.env.ENT_QUIET !== '1') console.log(`[crawl] Site map: ${sm}`);
-    await appendEvent(projectPath, { level:'info', stage:'crawl', msg:'site-map', path: sm, pages: site.pages?.length||0 });
-  } catch (e) { console.log(`[crawl] Skipped: ${e.message||String(e)}`); await appendEvent(projectPath, { level:'warn', stage:'crawl', msg:'skipped', error: e.message||String(e) }); }
-  try {
-    if (process.env.ENT_QUIET !== '1') console.log('[stage] extract');
-    const ex = await withTimeout(() => extractTarget(targetUrl, projectPath), 180000, 'extract', projectPath);
-    if (!ex || ex.__timeout) throw new Error('extract-timeout');
-    if (process.env.ENT_QUIET !== '1') console.log(`[extract] Artifacts at ${ex.evidenceDir}`);
-    await appendEvent(projectPath, { level:'info', stage:'extract', msg:'done', dir: ex.evidenceDir });
-  } catch (e) { console.log(`[extract] Skipped or failed: ${e.message||String(e)}`); await appendEvent(projectPath, { level:'warn', stage:'extract', msg:'failed', error: e.message||String(e) }); }
-  try {
-    if (process.env.ENT_QUIET !== '1') console.log('[stage] extract-pages');
-    const px = await withTimeout(() => extractPages(site, projectPath), 120000, 'extract-pages', projectPath);
-    if (!px || px.__timeout) throw new Error('extract-pages-timeout');
-    if (process.env.ENT_QUIET !== '1') console.log(`[extract] Per-page data at ${px.outDir}`);
-    await appendEvent(projectPath, { level:'info', stage:'extract', msg:'per-page', dir: px.outDir });
-  } catch (e) { console.log(`[extract] pages skipped: ${e.message||String(e)}`); await appendEvent(projectPath, { level:'warn', stage:'extract', msg:'per-page-skipped', error: e.message||String(e) }); }
+    if (process.env.ENT_QUIET !== '1') console.log('[delegate] protocol-30');
+    const protocolRes = await executeProtocol30(targetUrl, {
+      projectName,
+      projectPath,
+      localUrl,
+      targetSimilarity: parseInt(opts.targetSimilarity || '90', 10),
+      visualEngine: opts.visualEngine || process.env.ENT_VISUAL_ENGINE || 'auto'
+    });
 
-  // Load structure and generate tokens
-  let struct = null; let tokens = null;
-  try { const extraction = require(path.join(projectPath,'evidence','extraction','extraction.json')); struct = extraction.structure || null; } catch {}
-  try {
-    if (process.env.ENT_QUIET !== '1') console.log('[stage] tokens');
-    const tk = await withTimeout(() => generateTokens(projectPath), 60000, 'tokens', projectPath);
-    if (!tk || tk.__timeout) throw new Error('tokens-timeout');
-    tokens = tk.tokens || null;
-    if (process.env.ENT_QUIET !== '1') console.log(`[tokens] Generated ${tk.jsonPath}`);
-    await appendEvent(projectPath, { level:'info', stage:'tokens', msg:'generated', path: tk.jsonPath });
-  } catch (e) { console.log(`[tokens] skipped: ${e.message||String(e)}`); await appendEvent(projectPath, { level:'warn', stage:'tokens', msg:'skipped', error: e.message||String(e) }); }
-
-  // Synthesize minimal static HTML for server fallback
-  let synthOk = false; let synthesizedHtml = null;
-  try {
-    if (process.env.ENT_QUIET !== '1') console.log('[stage] synth-static');
-    const s = await withTimeout(() => synthesizeFromExtraction(projectPath), 60000, 'synth-static', projectPath);
-    if (!s || s.__timeout) throw new Error('synth-timeout');
-    synthOk = s.ok;
-    if (s.ok) { synthesizedHtml = await fsp.readFile(s.indexPath,'utf8'); await appendEvent(projectPath, { level:'info', stage:'synthesis', msg:'static-updated', index: s.indexPath }); }
-    if (process.env.ENT_QUIET !== '1') console.log(s.ok ? `[synthesis] index.html updated (${s.indexPath})` : `[synthesis] ${s.reason}`);
-  } catch (e) { console.log(`[synthesis] Error: ${e.message||String(e)}`); await appendEvent(projectPath, { level:'error', stage:'synthesis', msg:'static-error', error: e.message||String(e) }); }
-  if (!synthOk) await writeCandidate(projectPath, port);
-
-  // Next.js bootstrap (if requested)
-  let nextProc = null; let server = null;
-  const wantNext = (opts.template === 'next') || (process.env.ENT_TEMPLATE === 'next');
-  if (wantNext && synthesizedHtml) {
-    try { if (site && struct) await synthesizeNext(projectPath, site, struct, tokens || {}); } catch {}
+    let result = { success: protocolRes.success, finalSimilarity: protocolRes.finalSimilarity };
     try {
-      if (process.env.ENT_QUIET !== '1') console.log('[stage] next-bootstrap');
-      const nx = await withTimeout(() => bootstrapNext(projectPath, synthesizedHtml, port, { auth: !!opts.auth }), 300000, 'next-bootstrap', projectPath);
-      if (nx.ok && nx.proc) { nextProc = nx.proc; console.log(`[orchestrator] Next.js dev server starting on ${localUrl}`); await appendEvent(projectPath, { level:'info', stage:'serve', msg:'next-dev-start' }); await new Promise(r=>setTimeout(r,3000)); }
-      else console.log(`[orchestrator] Next bootstrap skipped: ${nx.note || 'unknown'}`);
-    } catch (e) { console.log(`[orchestrator] Next bootstrap error: ${e.message||String(e)}`); }
-  }
-  if (!nextProc) { server = await createServer(projectPath, port); console.log(`[orchestrator] Local server started at ${localUrl}`); await appendEvent(projectPath, { level:'info', stage:'serve', msg:'static-start' }); }
+      const { enforceBudgets } = require('./budgets');
+      const applied = await enforceBudgets({ targetUrl, localUrl, projectPath, result });
+      if (applied && applied.updated) {
+        result = applied.result;
+      }
+    } catch {}
 
-  // Protocol 3.0 + Iteration v2
-  if (process.env.ENT_QUIET !== '1') console.log('[stage] validate:protocol30');
-  let result = await withTimeout(() => executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }), 300000, 'validate:protocol30', projectPath);
-  if (!result || result.__timeout) result = { success:false, finalSimilarity:0 };
-  await appendEvent(projectPath, { level:'info', stage:'validate', msg:'protocol30', result });
-  const targetSim = parseInt(opts.targetSimilarity || '90', 10);
-  if (!result.success && (result.finalSimilarity || 0) < targetSim) {
-    try { if (process.env.ENT_QUIET !== '1') console.log('[stage] iterate:resynth'); const s2 = await withTimeout(() => synthesizeFromExtraction(projectPath), 60000, 'iterate:resynth', projectPath); if (s2 && !s2.__timeout && s2.ok) { console.log('[iterate] Re-synthesized candidate; re-validate'); await appendEvent(projectPath, { level:'info', stage:'iterate', msg:'resynth' }); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); await appendEvent(projectPath, { level:'info', stage:'validate', msg:'protocol30', result }); } } catch {}
-    try { const { patchContentFromExtraction } = require('./patcher-content'); if (process.env.ENT_QUIET !== '1') console.log('[stage] iterate:content-patch'); const pc = await withTimeout(() => patchContentFromExtraction(projectPath), 60000, 'iterate:content-patch', projectPath); if (pc && !pc.__timeout && pc.changed) { console.log(`[iterate] Page content patched (${pc.files.length}); re-validate`); await appendEvent(projectPath, { level:'info', stage:'iterate', msg:'content-patch', files: pc.files.length }); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); await appendEvent(projectPath, { level:'info', stage:'validate', msg:'protocol30', result }); } } catch {}
-    try { const { patchHeroComponent } = require('./patcher-hero'); if (process.env.ENT_QUIET !== '1') console.log('[stage] iterate:hero-patch'); const ph = await withTimeout(() => patchHeroComponent(projectPath), 60000, 'iterate:hero-patch', projectPath); if (ph && !ph.__timeout && ph.changed) { console.log('[iterate] Hero patched; re-validate'); await appendEvent(projectPath, { level:'info', stage:'iterate', msg:'hero-patch' }); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); await appendEvent(projectPath, { level:'info', stage:'validate', msg:'protocol30', result }); } } catch {}
-    try { const { patchTokens } = require('./patcher'); if (process.env.ENT_QUIET !== '1') console.log('[stage] iterate:token-patch'); const pr = await withTimeout(() => patchTokens(projectPath), 60000, 'iterate:token-patch', projectPath); if (pr && !pr.__timeout && pr.changed) { console.log('[iterate] Tokens patched; re-validate'); await appendEvent(projectPath, { level:'info', stage:'iterate', msg:'token-patch' }); result = await executeProtocol30(targetUrl, { projectName, projectPath, localUrl, targetSimilarity: opts.targetSimilarity }); await appendEvent(projectPath, { level:'info', stage:'validate', msg:'protocol30', result }); } } catch {}
+    const log = { timestamp: new Date().toISOString(), targetUrl, localUrl, projectName, projectPath, result };
+    const logPath = path.join(projectPath,'orchestrator-log.json'); await fsp.writeFile(logPath, JSON.stringify(log,null,2),'utf8'); console.log(`[orchestrator] Result written: ${logPath}`);
+    await appendEvent(projectPath, { level:'info', stage:'summary', msg:'complete', log: logPath });
+    return { projectPath, localUrl, result, logPath };
+  } catch (e) {
+    const result = { success:false, finalSimilarity:0, error: e.message||String(e) };
+    const log = { timestamp: new Date().toISOString(), targetUrl, localUrl, projectName, projectPath, result };
+    const logPath = path.join(projectPath,'orchestrator-log.json'); await fsp.writeFile(logPath, JSON.stringify(log,null,2),'utf8'); console.log(`[orchestrator] Result written: ${logPath}`);
+    await appendEvent(projectPath, { level:'error', stage:'summary', msg:'failed', log: logPath, error: result.error });
+    return { projectPath, localUrl, result, logPath };
   }
 
-  // Stop preview
-  if (server) { await new Promise(resolve=> server.close(()=>resolve())); console.log('[orchestrator] Server stopped'); await appendEvent(projectPath, { level:'info', stage:'serve', msg:'static-stop' }); }
-  if (nextProc) { try { nextProc.kill(); } catch {}; console.log('[orchestrator] Next.js server stopped'); await appendEvent(projectPath, { level:'info', stage:'serve', msg:'next-dev-stop' }); }
-
-  // Log
-  const log = { timestamp: new Date().toISOString(), targetUrl, localUrl, projectName, projectPath, result };
-  const logPath = path.join(projectPath,'orchestrator-log.json'); await fsp.writeFile(logPath, JSON.stringify(log,null,2),'utf8'); console.log(`[orchestrator] Result written: ${logPath}`);
-  await appendEvent(projectPath, { level:'info', stage:'summary', msg:'complete', log: logPath });
-
-  // Validation summaries
-  let mvSummary = null;
-  try { const { summarizeMultiViewport } = require('./multi-viewport-validate'); if (process.env.ENT_QUIET !== '1') console.log('[stage] validate:multi-viewport'); const mv = await withTimeout(() => summarizeMultiViewport(targetUrl, localUrl, path.join(projectPath,'evidence','validation'), { visualEngine: opts.visualEngine || 'auto' }), 120000, 'validate:multi-viewport', projectPath); if (mv && mv.summaryPath) { console.log(`[validation] Multi-viewport summary: ${mv.summaryPath}`); mvSummary = JSON.parse(fs.readFileSync(mv.summaryPath,'utf8')); } } catch {}
-  try { const { validateIntegrity } = require('./validate-integrity'); if (process.env.ENT_QUIET !== '1') console.log('[stage] validate:integrity'); const iv = await withTimeout(() => validateIntegrity(projectPath, localUrl, path.join(projectPath,'evidence','validation')), 60000, 'validate:integrity', projectPath); if (iv && iv.reportPath) console.log(`[validation] Integrity: ${iv.reportPath}`); } catch {}
-  try { const extracted = require(path.join(projectPath,'evidence','extraction','extraction.json')); const { validateStructure } = require('./validate-structure'); if (process.env.ENT_QUIET !== '1') console.log('[stage] validate:dom-parity'); const sv = await withTimeout(() => validateStructure(extracted, localUrl), 60000, 'validate:dom-parity', projectPath); const p = path.join(projectPath,'evidence','validation','dom-parity.json'); await ensureDir(path.dirname(p)); await fsp.writeFile(p, JSON.stringify(sv,null,2),'utf8'); console.log(`[validation] DOM parity: ${p}`); } catch {}
-
-  // Budgets/gating
-  try { const { enforceBudgets } = require('./budgets'); const gated = await enforceBudgets({ targetUrl, localUrl, projectPath, result }); if (gated && gated.updated) { result = gated.result; console.log(`[gating] Budgets applied: success=${result.success}`); } } catch {}
-
-  // Deploy/rollback
-  try { if (opts.deploy) { if (process.env.ENT_QUIET !== '1') console.log('[stage] deploy'); const { deployVercel } = require('./deploy'); const dep = await withTimeout(() => deployVercel(projectPath,false), 300000, 'deploy', projectPath); console.log(dep.ok ? `[deploy] Vercel preview: ${dep.url || 'see output'}` : '[deploy] Skipped or failed'); } } catch {}
-  try { if (opts.rollback) { if (process.env.ENT_QUIET !== '1') console.log('[stage] rollback'); const { rollbackVercel } = require('./rollback'); const rb = await withTimeout(() => rollbackVercel(projectPath), 180000, 'rollback', projectPath); console.log(rb.ok ? '[deploy] Rollback executed' : '[deploy] Rollback failed or unavailable'); } } catch {}
-
-  // Evidence index
-  try { const { writeEvidenceIndex } = require('./evidence-index'); const idx = await writeEvidenceIndex(projectPath); console.log(`[evidence] Index: ${idx}`); } catch {}
-
-  // Pause for human feedback if threshold reached and not auto
+  // Delegate to Protocol 3.0 for cloning/validation/iteration
   try {
-    const threshold = parseInt(process.env.ENT_TARGET_MV_MIN || '90', 10);
-    const score = (result && typeof result.finalSimilarity === 'number') ? result.finalSimilarity : (mvSummary ? mvSummary.minScore : 0);
-    if (!opts.auto && (opts.pauseAfterThreshold || true) && score >= threshold) {
-      const fbDir = path.join(projectPath,'feedback'); await ensureDir(fbDir);
-      const fbPath = path.join(fbDir,'REQUEST.md');
-      const note = `# Feedback Requested\n\n- Similarity score: ${score}\n- Evidence index: evidence/index.html\n\nPlease describe desired changes (e.g., hero padding, CTA text, colors).`;
-      await fsp.writeFile(fbPath, note, 'utf8');
-      console.log(`[feedback] Threshold met (${score}%). Awaiting feedback at ${fbPath}`);
-    }
-  } catch {}
+    if (process.env.ENT_QUIET !== '1') console.log('[delegate] protocol-3.0');
+    const protocolRes = await executeProtocol30(targetUrl, {
+      projectName,
+      projectPath,
+      localUrl,
+      targetSimilarity: parseInt(opts.targetSimilarity || '90', 10),
+      visualEngine: opts.visualEngine || process.env.ENT_VISUAL_ENGINE || 'auto'
+    });
 
-  return { projectPath, localUrl, result, logPath };
+    // Optionally enforce budgets here for compatibility
+    let result = { success: protocolRes.success, finalSimilarity: protocolRes.finalSimilarity };
+    try {
+      const { enforceBudgets } = require('./budgets');
+      const applied = await enforceBudgets({ targetUrl, localUrl, projectPath, result });
+      if (applied && applied.updated) {
+        result = applied.result;
+      }
+    } catch {}
+
+    // Log
+    const log = { timestamp: new Date().toISOString(), targetUrl, localUrl, projectName, projectPath, result };
+    const logPath = path.join(projectPath,'orchestrator-log.json'); await fsp.writeFile(logPath, JSON.stringify(log,null,2),'utf8'); console.log(`[orchestrator] Result written: ${logPath}`);
+    await appendEvent(projectPath, { level:'info', stage:'summary', msg:'complete', log: logPath });
+    return { projectPath, localUrl, result, logPath };
+  } catch (e) {
+    const result = { success:false, finalSimilarity:0, error: e.message||String(e) };
+    const log = { timestamp: new Date().toISOString(), targetUrl, localUrl, projectName, projectPath, result };
+    const logPath = path.join(projectPath,'orchestrator-log.json'); await fsp.writeFile(logPath, JSON.stringify(log,null,2),'utf8'); console.log(`[orchestrator] Result written: ${logPath}`);
+    await appendEvent(projectPath, { level:'error', stage:'summary', msg:'failed', log: logPath, error: result.error });
+    return { projectPath, localUrl, result, logPath };
+  }
 }
 
 module.exports = { runOrchestration };
