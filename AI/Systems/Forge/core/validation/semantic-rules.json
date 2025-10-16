@@ -1,0 +1,244 @@
+{
+  "version": "1.0",
+  "description": "Semantic validation rules for PRD deliverables",
+  "deliverables": {
+    "problem_statement": {
+      "weight": 0.10,
+      "required_elements": [
+        {
+          "id": "target_users",
+          "patterns": ["users?", "audience", "customers?", "personas?"],
+          "points": 25,
+          "description": "Identifies target users"
+        },
+        {
+          "id": "problem_description",
+          "patterns": ["problem", "pain point", "challenge", "struggle", "difficulty"],
+          "points": 25,
+          "description": "Describes the problem being solved"
+        },
+        {
+          "id": "goal",
+          "patterns": ["goal", "objective", "aim", "purpose", "enable", "allow"],
+          "points": 25,
+          "description": "States primary goal/objective"
+        },
+        {
+          "id": "market_context",
+          "patterns": ["market", "opportunity", "\\$\\d+", "industry"],
+          "points": 25,
+          "description": "Provides market/business context"
+        }
+      ],
+      "minimum_score": 75
+    },
+    "user_personas": {
+      "weight": 0.07,
+      "required_elements": [
+        {
+          "id": "persona_count",
+          "type": "count",
+          "patterns": ["persona \\d+", "###.*persona"],
+          "minimum": 2,
+          "points": 30,
+          "description": "At least 2 distinct personas"
+        },
+        {
+          "id": "demographics",
+          "patterns": ["age", "years? old", "role", "title", "experience"],
+          "points": 25,
+          "description": "Demographics info"
+        },
+        {
+          "id": "goals",
+          "patterns": ["goals?:", "wants? to", "needs? to", "objectives?"],
+          "points": 25,
+          "description": "User goals defined"
+        },
+        {
+          "id": "pain_points",
+          "patterns": ["pain points?", "frustrat", "challenges?", "struggles?"],
+          "points": 20,
+          "description": "Pain points identified"
+        }
+      ],
+      "minimum_score": 75
+    },
+    "user_stories": {
+      "weight": 0.05,
+      "required_elements": [
+        {
+          "id": "story_format",
+          "type": "count",
+          "patterns": ["as a", "i want", "so that"],
+          "minimum": 3,
+          "points": 60,
+          "description": "User story format (As a... I want... So that...)"
+        },
+        {
+          "id": "story_count",
+          "type": "count",
+          "patterns": ["^\\s*-", "^\\d+\\."],
+          "minimum": 5,
+          "points": 40,
+          "description": "At least 5 user stories"
+        }
+      ],
+      "minimum_score": 60
+    },
+    "feature_list": {
+      "weight": 0.25,
+      "required_elements": [
+        {
+          "id": "feature_count",
+          "type": "count",
+          "patterns": ["####"],
+          "minimum": 3,
+          "points": 30,
+          "description": "At least 3 defined features"
+        },
+        {
+          "id": "acceptance_criteria",
+          "type": "count",
+          "patterns": ["- \\[[ x]\\]"],
+          "minimum": 9,
+          "points": 40,
+          "description": "Acceptance criteria (3+ per feature)"
+        },
+        {
+          "id": "descriptions",
+          "patterns": ["description:", "overview:", "details?:"],
+          "points": 15,
+          "description": "Feature descriptions present"
+        },
+        {
+          "id": "mvp_prioritization",
+          "patterns": ["mvp", "must-have", "should-have", "could-have", "priority"],
+          "points": 15,
+          "description": "Features prioritized"
+        }
+      ],
+      "minimum_score": 75
+    },
+    "tech_stack": {
+      "weight": 0.20,
+      "required_elements": [
+        {
+          "id": "frontend",
+          "patterns": ["frontend", "react", "vue", "angular", "next\\.js", "svelte"],
+          "points": 20,
+          "description": "Frontend framework specified"
+        },
+        {
+          "id": "backend",
+          "patterns": ["backend", "node", "python", "django", "express", "fastapi", "rails", "go"],
+          "points": 20,
+          "description": "Backend framework specified"
+        },
+        {
+          "id": "database",
+          "patterns": ["database", "postgresql", "mysql", "mongodb", "dynamodb", "supabase", "firebase"],
+          "points": 20,
+          "description": "Database specified"
+        },
+        {
+          "id": "auth",
+          "patterns": ["auth", "authentication", "clerk", "auth0", "supabase auth", "firebase auth"],
+          "points": 20,
+          "description": "Authentication provider specified"
+        },
+        {
+          "id": "hosting",
+          "patterns": ["hosting", "deploy", "vercel", "netlify", "aws", "heroku", "railway"],
+          "points": 20,
+          "description": "Hosting platform specified"
+        }
+      ],
+      "minimum_score": 100
+    },
+    "success_metrics": {
+      "weight": 0.15,
+      "required_elements": [
+        {
+          "id": "kpi_count",
+          "type": "count",
+          "patterns": ["^\\s*\\d+\\.", "^\\s*-"],
+          "minimum": 3,
+          "points": 30,
+          "description": "At least 3 KPIs defined"
+        },
+        {
+          "id": "measurable",
+          "type": "count",
+          "patterns": ["\\d+%", "\\d+ users?", "\\d+ hours?", "\\$\\d+", "\\d+ days?", "\\d+ weeks?", "nps", "score"],
+          "minimum": 3,
+          "points": 40,
+          "description": "Metrics include numbers/targets"
+        },
+        {
+          "id": "metric_types",
+          "patterns": ["adoption", "retention", "growth", "usage", "satisfaction", "conversion"],
+          "points": 30,
+          "description": "Variety of metric types"
+        }
+      ],
+      "minimum_score": 70
+    },
+    "mvp_scope": {
+      "weight": 0.15,
+      "required_elements": [
+        {
+          "id": "phases",
+          "type": "count",
+          "patterns": ["phase \\d+", "###.*phase", "v\\d+\\.\\d+", "month", "sprint"],
+          "minimum": 2,
+          "points": 30,
+          "description": "Timeline/phases defined"
+        },
+        {
+          "id": "mvp_features",
+          "patterns": ["mvp", "v1", "phase 1", "must-have", "core features"],
+          "points": 35,
+          "description": "MVP features identified"
+        },
+        {
+          "id": "future_work",
+          "patterns": ["v2", "phase 2", "should-have", "could-have", "future", "later"],
+          "points": 20,
+          "description": "Future work scoped"
+        },
+        {
+          "id": "definition_of_done",
+          "patterns": ["definition of done", "done when", "ready when", "complete when", "success criteria"],
+          "points": 15,
+          "description": "Definition of done"
+        }
+      ],
+      "minimum_score": 70
+    },
+    "non_functional": {
+      "weight": 0.03,
+      "required_elements": [
+        {
+          "id": "performance",
+          "patterns": ["performance", "latency", "load time", "response time", "< ?\\d+m?s"],
+          "points": 33,
+          "description": "Performance requirements"
+        },
+        {
+          "id": "security",
+          "patterns": ["security", "encryption", "https", "auth", "rbac", "permissions"],
+          "points": 33,
+          "description": "Security requirements"
+        },
+        {
+          "id": "scalability",
+          "patterns": ["scalability", "users", "concurrent", "capacity", "support \\d+"],
+          "points": 34,
+          "description": "Scalability requirements"
+        }
+      ],
+      "minimum_score": 66
+    }
+  }
+}

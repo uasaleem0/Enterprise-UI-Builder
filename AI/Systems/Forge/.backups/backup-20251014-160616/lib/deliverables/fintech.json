@@ -1,0 +1,136 @@
+{
+  "industry": "fintech",
+  "keywords": ["payment", "transaction", "banking", "financial", "money", "compliance", "KYC", "AML", "wallet"],
+  "additional_deliverables": [
+    {
+      "id": "pci_dss_compliance",
+      "name": "PCI-DSS Compliance Plan",
+      "weight": 0.05,
+      "percentage": "5%",
+      "required": true,
+      "agent": "analyst",
+      "questions": [
+        "Will you process credit card payments directly?",
+        "Are you using a payment processor (Stripe, PayPal)?",
+        "What card data will you store (if any)?"
+      ],
+      "template": {
+        "sections": [
+          "Payment Processing Method",
+          "Card Data Storage (avoid storing if possible)",
+          "PCI-DSS Compliance Level (1-4)",
+          "Encryption Standards",
+          "Access Controls",
+          "Network Security",
+          "Vulnerability Management",
+          "Annual Compliance Audit"
+        ]
+      }
+    },
+    {
+      "id": "financial_regulations",
+      "name": "Financial Regulations Compliance",
+      "weight": 0.03,
+      "percentage": "3%",
+      "required": true,
+      "agent": "analyst",
+      "questions": [
+        "What financial regulations apply (SOX, GDPR, local laws)?",
+        "Do you need money transmitter licenses?",
+        "What jurisdiction are you operating in?"
+      ],
+      "template": {
+        "sections": [
+          "Applicable Regulations (SOX, FINRA, etc.)",
+          "Licensing Requirements",
+          "Reporting Requirements",
+          "Transaction Monitoring",
+          "Fraud Prevention",
+          "Dispute Resolution"
+        ]
+      }
+    },
+    {
+      "id": "kyc_aml",
+      "name": "KYC/AML Procedures",
+      "weight": 0.02,
+      "percentage": "2%",
+      "required": true,
+      "agent": "analyst",
+      "questions": [
+        "Do you need KYC (Know Your Customer) verification?",
+        "What AML (Anti-Money Laundering) measures are needed?",
+        "What identity verification level is required?"
+      ],
+      "template": {
+        "sections": [
+          "Identity Verification Process",
+          "Document Requirements (ID, proof of address)",
+          "Verification Service Provider",
+          "Transaction Monitoring for Suspicious Activity",
+          "Reporting Requirements (SAR - Suspicious Activity Reports)",
+          "Record Retention Policy"
+        ]
+      }
+    }
+  ],
+  "compliance_frameworks": [
+    {
+      "name": "PCI-DSS",
+      "description": "Payment Card Industry Data Security Standard",
+      "applies_if": "Processing credit card payments",
+      "key_requirements": [
+        "Install and maintain firewall",
+        "Encrypt transmission of cardholder data",
+        "Use and regularly update anti-virus",
+        "Restrict access to cardholder data",
+        "Assign unique ID to each person with access",
+        "Test security systems regularly"
+      ],
+      "levels": {
+        "level_1": ">6M transactions/year",
+        "level_2": "1-6M transactions/year",
+        "level_3": "20k-1M e-commerce transactions/year",
+        "level_4": "<20k e-commerce transactions/year"
+      }
+    },
+    {
+      "name": "SOX",
+      "description": "Sarbanes-Oxley Act",
+      "applies_if": "Public company or handling public company finances",
+      "key_requirements": [
+        "Financial reporting controls",
+        "Internal controls documentation",
+        "Audit trails",
+        "Data retention"
+      ]
+    }
+  ],
+  "weight_adjustments": {
+    "description": "Reduce base weights by 10% to accommodate fintech-specific deliverables",
+    "adjustment_factor": 0.90,
+    "total_additional_weight": 0.10
+  },
+  "recommended_integrations": [
+    {
+      "name": "Stripe",
+      "purpose": "Payment processing (PCI-DSS compliant)",
+      "cost": "2.9% + $0.30 per transaction"
+    },
+    {
+      "name": "Plaid",
+      "purpose": "Bank account verification and ACH",
+      "cost": "$0.25-0.50 per verification"
+    },
+    {
+      "name": "Jumio or Onfido",
+      "purpose": "KYC/Identity verification",
+      "cost": "$1-3 per verification"
+    },
+    {
+      "name": "Sift",
+      "purpose": "Fraud detection",
+      "cost": "Usage-based"
+    }
+  ]
+}

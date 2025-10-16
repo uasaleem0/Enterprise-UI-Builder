@@ -1,0 +1,118 @@
+{
+  "version": "1.0",
+  "industry": "saas",
+  "description": "SaaS-specific discovery questions",
+  "applies_when": ["subscription", "dashboard", "user management", "multi-tenant", "SaaS"],
+  "questions": [
+    {
+      "id": "subscription_model",
+      "agent": "pm",
+      "order": 1,
+      "question": "What's your subscription model?",
+      "subtext": "(Pricing tiers, billing frequency, features per tier)",
+      "examples": [
+        "Free tier + $9.99/mo Standard + $29.99/mo Pro",
+        "Single tier at $19/mo with annual discount",
+        "Usage-based: $0.10 per API call"
+      ],
+      "follow_ups": [
+        "What features are in each tier?",
+        "Do you offer annual discounts?",
+        "Is there a free trial?"
+      ],
+      "impact": {
+        "feature_list": 5,
+        "mvp_scope": 10
+      },
+      "required": true
+    },
+    {
+      "id": "user_roles",
+      "agent": "architect",
+      "order": 2,
+      "question": "What user roles/permissions do you need?",
+      "subtext": "(Admin, User, Viewer, Custom roles, etc.)",
+      "examples": [
+        "Admin (full access), User (create/edit own data), Viewer (read-only)",
+        "Organization Owner, Team Admin, Team Member",
+        "Custom roles with granular permissions"
+      ],
+      "follow_ups": [
+        "Can users invite others?",
+        "Do you need team/organization hierarchy?",
+        "What permissions does each role have?"
+      ],
+      "impact": {
+        "feature_list": 5,
+        "tech_stack": 5
+      },
+      "required": true
+    },
+    {
+      "id": "multi_tenancy",
+      "agent": "architect",
+      "order": 3,
+      "question": "Do you need multi-tenancy (organizations/workspaces)?",
+      "subtext": "(Each customer has isolated data/workspace)",
+      "examples": [
+        "Yes - each company has separate workspace",
+        "No - single workspace per user",
+        "Team-based - users can belong to multiple teams"
+      ],
+      "follow_ups": [
+        "Can users belong to multiple organizations?",
+        "How is data isolated between tenants?",
+        "Do you need organization-level settings?"
+      ],
+      "impact": {
+        "tech_stack": 10,
+        "non_functional": 5
+      },
+      "required": true
+    },
+    {
+      "id": "onboarding",
+      "agent": "pm",
+      "order": 4,
+      "question": "What's the user onboarding flow?",
+      "subtext": "(Sign up → verify → onboard → first action)",
+      "examples": [
+        "Email signup → verify email → setup profile → tour → first project",
+        "OAuth (Google/GitHub) → quick survey → dashboard",
+        "Invite-only → admin creates account → user sets password"
+      ],
+      "follow_ups": [
+        "Do you need email verification?",
+        "Is there a product tour?",
+        "What's the first action users should take?"
+      ],
+      "impact": {
+        "user_stories": 5,
+        "mvp_scope": 5
+      },
+      "required": false
+    },
+    {
+      "id": "integrations",
+      "agent": "architect",
+      "order": 5,
+      "question": "What third-party integrations do you need?",
+      "subtext": "(Slack, email, payment, analytics, etc.)",
+      "examples": [
+        "Stripe for payments, SendGrid for email",
+        "Slack notifications, Zapier webhooks",
+        "Google Calendar sync, GitHub integration"
+      ],
+      "follow_ups": [
+        "Which integrations are must-have for MVP?",
+        "Do users connect their own accounts or use yours?",
+        "Are webhooks needed?"
+      ],
+      "impact": {
+        "feature_list": 10,
+        "tech_stack": 5
+      },
+      "required": false
+    }
+  ]
+}

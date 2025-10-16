@@ -1,0 +1,191 @@
+{
+  "version": "1.0",
+  "description": "Core discovery questions for all projects (from-scratch workflow)",
+  "questions": [
+    {
+      "id": "problem_statement",
+      "agent": "analyst",
+      "order": 1,
+      "question": "What problem does this solve?",
+      "subtext": "(Be specific: What's broken? Why does it matter?)",
+      "examples": [
+        "Personal trainers spend 10+ hours/week on spreadsheets that are error-prone and don't provide visual insights",
+        "Users can't visualize their fitness progress over time, leading to lack of motivation",
+        "Small businesses struggle to manage inventory across multiple locations with real-time accuracy"
+      ],
+      "bad_example": "I want to build a fitness app",
+      "good_example": "Personal trainers struggle to track client progress across workouts. They use spreadsheets which are error-prone and don't provide visual insights. This leads to ineffective program adjustments and client churn.",
+      "follow_ups": [
+        "Why is this problem worth solving?",
+        "What happens if this problem isn't solved?",
+        "What existing solutions have you tried? What didn't work?"
+      ],
+      "impact": {
+        "problem_statement": 10,
+        "confidence_increase": "10%"
+      },
+      "required": true
+    },
+    {
+      "id": "target_users",
+      "agent": "analyst",
+      "order": 2,
+      "question": "Who will use this?",
+      "subtext": "(Be specific: demographics, goals, pain points)",
+      "examples": [
+        "Gym-goers aged 25-40 training for strength, currently using pen and paper",
+        "Personal trainers managing 10-50 clients, frustrated with spreadsheet chaos",
+        "Small retail business owners with 2-5 locations, need real-time inventory visibility"
+      ],
+      "bad_example": "People who want to get fit",
+      "good_example": "Two user segments: (1) Gym-goers aged 25-40 training for strength, currently using pen and paper or basic apps. (2) Personal trainers managing 10-50 clients, frustrated with spreadsheet chaos and lack of client insights.",
+      "follow_ups": [
+        "What are their biggest frustrations with current solutions?",
+        "What are their goals when using this product?",
+        "How tech-savvy are they?"
+      ],
+      "impact": {
+        "user_personas": 7,
+        "user_stories": 5,
+        "confidence_increase": "12%"
+      },
+      "required": true
+    },
+    {
+      "id": "success_criteria",
+      "agent": "analyst",
+      "order": 3,
+      "question": "How will you know this is successful? What metrics matter?",
+      "subtext": "(Provide 3-5 KPIs with target values)",
+      "examples": [
+        "50 active trainers using the platform within 3 months",
+        "80% client retention rate (vs 60% industry average)",
+        "Trainers save 5+ hours/week on admin work",
+        "10,000 workouts logged per month by month 6"
+      ],
+      "bad_example": "Be successful and make money",
+      "good_example": "Success metrics: (1) 50 active trainers within 3 months, (2) 80% client retention rate (vs 60% industry average), (3) Trainers save 5+ hours/week on admin work, (4) $10k MRR by month 6",
+      "follow_ups": [
+        "What's the target value for each metric?",
+        "When do you expect to hit these targets?",
+        "Which metric is most important?"
+      ],
+      "impact": {
+        "success_metrics": 15,
+        "confidence_increase": "15%"
+      },
+      "required": true
+    },
+    {
+      "id": "market_opportunity",
+      "agent": "analyst",
+      "order": 4,
+      "question": "Why now? What makes this the right time to build this?",
+      "subtext": "(Market trends, competitive landscape, timing)",
+      "examples": [
+        "Fitness industry growing 23% annually, but trainer tools haven't evolved",
+        "Remote training exploded during COVID, but tools are fragmented",
+        "Competitors focus on consumers, not trainers (B2B opportunity)"
+      ],
+      "follow_ups": [
+        "Who else is solving this problem?",
+        "What makes your approach different?",
+        "What's the market size?"
+      ],
+      "impact": {
+        "problem_statement": 0,
+        "confidence_increase": "Refinement only"
+      },
+      "required": false
+    },
+    {
+      "id": "core_features",
+      "agent": "analyst",
+      "order": 5,
+      "question": "What are the core features you envision?",
+      "subtext": "(List 3-10 features, we'll extract explicit and implied)",
+      "examples": [
+        "Workout logging with exercises, sets, reps, weight",
+        "Progress tracking with charts over time",
+        "Trainer dashboard to manage multiple clients",
+        "Client mobile app for logging workouts"
+      ],
+      "follow_ups": [
+        "For each feature, what's the user value?",
+        "Which features are essential for launch (MVP)?",
+        "Which features can wait for v2?"
+      ],
+      "impact": {
+        "feature_list": 25,
+        "confidence_increase": "25%"
+      },
+      "required": true
+    },
+    {
+      "id": "team_expertise",
+      "agent": "architect",
+      "order": 6,
+      "question": "What frameworks/languages does your team have experience with?",
+      "subtext": "(This helps recommend tech stack)",
+      "examples": [
+        "React + Node.js + PostgreSQL",
+        "Rails + PostgreSQL",
+        "No preference, open to recommendations",
+        "Python (Django or FastAPI) preferred"
+      ],
+      "follow_ups": [
+        "Are you open to learning new tech, or stick with what you know?",
+        "Do you have frontend/backend expertise?",
+        "Any strong preferences or dealbreakers?"
+      ],
+      "impact": {
+        "tech_stack": 20,
+        "confidence_increase": "20%"
+      },
+      "required": true
+    },
+    {
+      "id": "mvp_timeline",
+      "agent": "pm",
+      "order": 7,
+      "question": "When do you want to launch the MVP?",
+      "subtext": "(Realistic timeline: 3 months? 6 months? 1 year?)",
+      "examples": [
+        "3 months (need to launch quickly, minimal features)",
+        "6 months (balanced approach, solid feature set)",
+        "1 year (comprehensive platform, multiple user types)"
+      ],
+      "follow_ups": [
+        "What's driving this timeline?",
+        "What's the minimum feature set to launch?",
+        "Can you launch with fewer features to get feedback?"
+      ],
+      "impact": {
+        "mvp_scope": 15,
+        "confidence_increase": "15%"
+      },
+      "required": false
+    },
+    {
+      "id": "budget",
+      "agent": "architect",
+      "order": 8,
+      "question": "What's your monthly budget for hosting/services?",
+      "subtext": "(Helps recommend tech stack and hosting)",
+      "examples": [
+        "< $50/mo (free tiers, tight budget)",
+        "$50-500/mo (startup budget, paid tiers)",
+        "$500+/mo (growth stage, managed services)"
+      ],
+      "follow_ups": [
+        "Is this for MVP or long-term?",
+        "Do you have budget for third-party services (auth, payments, etc.)?"
+      ],
+      "impact": {
+        "tech_stack": 0,
+        "confidence_increase": "Informs tech stack decisions"
+      },
+      "required": false
+    }
+  ]
+}

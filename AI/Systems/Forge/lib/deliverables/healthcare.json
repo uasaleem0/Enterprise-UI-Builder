@@ -1,0 +1,104 @@
+{
+  "industry": "healthcare",
+  "keywords": ["patients", "PHI", "HIPAA", "medical", "health", "clinical", "EHR", "EMR", "healthcare"],
+  "additional_deliverables": [
+    {
+      "id": "hipaa_compliance",
+      "name": "HIPAA Compliance Plan",
+      "weight": 0.05,
+      "percentage": "5%",
+      "required": true,
+      "agent": "analyst",
+      "questions": [
+        "Will you store Protected Health Information (PHI)?",
+        "Do you need HIPAA compliance?",
+        "What safeguards will you implement for PHI?"
+      ],
+      "template": {
+        "sections": [
+          "PHI Data Types Collected",
+          "Data Encryption (at rest and in transit)",
+          "Access Controls and Authentication",
+          "Audit Logging",
+          "Business Associate Agreements (BAAs)",
+          "Breach Notification Procedures",
+          "HIPAA Training Requirements"
+        ]
+      }
+    },
+    {
+      "id": "ehr_integration",
+      "name": "EHR Integration Specification",
+      "weight": 0.03,
+      "percentage": "3%",
+      "required": true,
+      "agent": "architect",
+      "questions": [
+        "What EHR systems need integration (Epic, Cerner, Allscripts, etc.)?",
+        "What data needs to be synced (appointments, vitals, medications, etc.)?",
+        "Is FHIR (Fast Healthcare Interoperability Resources) required?"
+      ],
+      "template": {
+        "sections": [
+          "Target EHR Systems",
+          "Integration Method (API, HL7, FHIR)",
+          "Data Mapping",
+          "Sync Frequency",
+          "Error Handling",
+          "Testing Strategy"
+        ]
+      }
+    },
+    {
+      "id": "data_privacy",
+      "name": "Data Privacy Policy",
+      "weight": 0.02,
+      "percentage": "2%",
+      "required": true,
+      "agent": "analyst",
+      "questions": [
+        "What PHI will be collected?",
+        "How long will data be retained?",
+        "Who has access to PHI?",
+        "How will data be deleted upon request?"
+      ],
+      "template": {
+        "sections": [
+          "Data Collection Policy",
+          "Data Retention Policy",
+          "User Rights (access, deletion, portability)",
+          "Third-Party Data Sharing",
+          "International Data Transfers (if applicable)"
+        ]
+      }
+    }
+  ],
+  "compliance_frameworks": [
+    {
+      "name": "HIPAA",
+      "description": "Health Insurance Portability and Accountability Act",
+      "applies_if": "Storing or transmitting PHI",
+      "key_requirements": [
+        "Administrative Safeguards (policies, training)",
+        "Physical Safeguards (facility security, device controls)",
+        "Technical Safeguards (encryption, access controls, audit logs)"
+      ],
+      "penalties": "Up to $50,000 per violation, criminal charges possible"
+    },
+    {
+      "name": "HITECH",
+      "description": "Health Information Technology for Economic and Clinical Health Act",
+      "applies_if": "Using EHRs or health IT",
+      "key_requirements": [
+        "Breach notification within 60 days",
+        "Business Associate Agreements required",
+        "Auditing requirements"
+      ]
+    }
+  ],
+  "weight_adjustments": {
+    "description": "Reduce base weights by 10% to accommodate healthcare-specific deliverables",
+    "adjustment_factor": 0.90,
+    "total_additional_weight": 0.10
+  }
+}

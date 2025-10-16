@@ -1,0 +1,63 @@
+[FORGE_IA_START]
+PROJECT: Test Fitness App
+DATE: 2025-10-14
+CONFIDENCE: 80%
+
+---SITEMAP---
+## Primary Pages
+- Landing Page (/)
+- Login/Signup (/auth)
+- Dashboard (/dashboard)
+  - Workouts (/dashboard/workouts)
+  - Progress (/dashboard/progress)
+  - Profile (/dashboard/profile)
+
+## Secondary Pages
+- Workout Detail (/workouts/:id)
+- Create Workout (/workouts/new)
+
+---USER_FLOWS---
+## Onboarding Flow
+1. User lands on homepage
+2. Clicks "Get Started"
+3. Creates account (email/password)
+4. Completes profile setup
+5. Arrives at dashboard
+
+## Workout Tracking Flow
+1. User navigates to Workouts
+2. Selects or creates workout
+3. Logs exercises and sets
+4. Saves workout
+5. Views updated progress
+
+---NAVIGATION---
+## Primary Navigation
+- Top nav bar (desktop)
+  - Logo
+  - Dashboard
+  - Workouts
+  - Profile
+  - Logout
+
+- Bottom tab bar (mobile)
+  - Home
+  - Workouts
+  - Progress
+  - Profile
+
+---COMPONENTS---
+## Core Components
+- WorkoutCard
+- ExerciseList
+- ProgressChart
+- ProfileForm
+- AuthForm
+
+---DATA_ENTITIES---
+## Primary Entities
+- User (id, email, name, created_at)
+- Workout (id, user_id, name, date, exercises)
+- Exercise (id, name, sets, reps, weight)
+- Progress (id, user_id, date, metrics)
+[FORGE_IA_END]

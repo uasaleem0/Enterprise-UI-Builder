@@ -1,0 +1,100 @@
+# Forge Foundation - .gitignore Template
+# This will be copied to projects and customized based on framework
+
+# Dependencies
+node_modules/
+vendor/
+venv/
+env/
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+out/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Test coverage
+coverage/
+.nyc_output/
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Secrets
+*.key
+*.pem
+*.cert
+credentials.json
+secrets.yml
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Framework-specific (customize based on actual framework)
+# Rails
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+/storage/*
+!/storage/.keep
+/public/uploads
+/public/system
+/public/assets
+/public/packs
+/public/packs-test
+
+# Next.js
+.next/
+next-env.d.ts
+
+# Python
+*.egg
+*.egg-info/
+pip-log.txt
+
+# Ruby
+*.gem
+*.rbc
+.rbenv-version
+.rvmrc
+
+# Go
+*.exe
+*.test
+*.out

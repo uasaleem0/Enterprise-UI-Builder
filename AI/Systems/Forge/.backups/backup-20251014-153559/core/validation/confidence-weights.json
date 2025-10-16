@@ -1,0 +1,249 @@
+{
+  "version": "1.0",
+  "formula": "Confidence = Σ (Deliverable_Completion × Weight)",
+  "minimum_threshold": 95,
+  "base_weights": {
+    "feature_list": {
+      "weight": 0.25,
+      "percentage": "25%",
+      "rationale": "Core product definition - can't build without features",
+      "agent": "analyst",
+      "completion_criteria": {
+        "100": "All features have specific acceptance criteria, user value, dependencies",
+        "75": "Most features defined with acceptance criteria, some gaps",
+        "50": "Features listed but acceptance criteria vague or missing",
+        "25": "Feature list exists but very vague (e.g., 'user dashboard')",
+        "0": "No features defined"
+      }
+    },
+    "tech_stack": {
+      "weight": 0.20,
+      "percentage": "20%",
+      "rationale": "Blocks architecture phase - must decide early",
+      "agent": "architect",
+      "required_components": [
+        "frontend_framework",
+        "backend_framework",
+        "database_type",
+        "auth_provider",
+        "hosting_platform"
+      ],
+      "completion_criteria": {
+        "100": "All 5 components chosen with reasoning, trade-offs, alternatives documented",
+        "80": "All 5 components chosen, reasoning provided, but trade-offs missing",
+        "60": "4 of 5 components chosen",
+        "40": "3 of 5 components chosen",
+        "20": "1-2 components chosen",
+        "0": "No tech stack decisions made"
+      },
+      "critical": true,
+      "blocks_progression_if_below": 100
+    },
+    "success_metrics": {
+      "weight": 0.15,
+      "percentage": "15%",
+      "rationale": "Defines 'done' - prevents scope creep",
+      "agent": "pm",
+      "completion_criteria": {
+        "100": "3-5 KPIs with target values, measurement methods, timelines",
+        "75": "3-5 KPIs with target values, but measurement methods vague",
+        "50": "KPIs listed but no target values or measurement methods",
+        "25": "Vague success criteria (e.g., 'be successful')",
+        "0": "No success metrics defined"
+      }
+    },
+    "mvp_scope": {
+      "weight": 0.15,
+      "percentage": "15%",
+      "rationale": "Clarifies v1 vs v2+ - prevents gold-plating",
+      "agent": "pm",
+      "completion_criteria": {
+        "100": "Clear Must/Should/Could/Won't with reasoning for each, timeline estimate",
+        "75": "Must/Should/Could defined, reasoning provided, but some gaps",
+        "50": "MVP features listed but no clear v2+ deferrals",
+        "25": "Vague MVP definition",
+        "0": "No MVP scope defined"
+      }
+    },
+    "problem_statement": {
+      "weight": 0.10,
+      "percentage": "10%",
+      "rationale": "Foundation for all decisions",
+      "agent": "analyst",
+      "completion_criteria": {
+        "100": "Clear problem, target users, current solutions, why it matters",
+        "75": "Problem and users defined, but current solutions vague",
+        "50": "Problem stated but lacks specificity",
+        "25": "Vague problem (e.g., 'make things better')",
+        "0": "No problem statement"
+      }
+    },
+    "user_personas": {
+      "weight": 0.07,
+      "percentage": "7%",
+      "rationale": "Drives UX decisions",
+      "agent": "pm",
+      "minimum_required": 2,
+      "completion_criteria": {
+        "100": "2+ personas with demographics, goals, pain points, tech savviness, key quotes",
+        "75": "2 personas with most details, but some fields missing",
+        "50": "1 persona complete OR 2 personas but very vague",
+        "25": "Vague user description (e.g., 'people who want to get fit')",
+        "0": "No personas defined"
+      }
+    },
+    "user_stories": {
+      "weight": 0.05,
+      "percentage": "5%",
+      "rationale": "Translates features to implementation",
+      "agent": "pm",
+      "format": "As a [persona], I want [goal], so that [benefit]",
+      "completion_criteria": {
+        "100": "5+ stories in Agile format with acceptance criteria, prioritized",
+        "80": "5+ stories in Agile format, but acceptance criteria vague",
+        "60": "3-4 stories in Agile format",
+        "40": "Stories exist but not in Agile format",
+        "20": "Vague stories (missing persona, goal, or benefit)",
+        "0": "No user stories"
+      }
+    },
+    "non_functional_requirements": {
+      "weight": 0.03,
+      "percentage": "3%",
+      "rationale": "Important but often deferred",
+      "agent": "architect",
+      "categories": [
+        "performance",
+        "security",
+        "scalability",
+        "accessibility"
+      ],
+      "completion_criteria": {
+        "100": "All 4 categories defined with specific targets",
+        "75": "3 of 4 categories defined",
+        "50": "2 of 4 categories defined",
+        "25": "1 category defined or all vague",
+        "0": "No non-functional requirements"
+      }
+    }
+  },
+  "industry_specific_weights": {
+    "healthcare": {
+      "additional_deliverables": {
+        "hipaa_compliance": {
+          "weight": 0.05,
+          "percentage": "5%",
+          "rationale": "Required for healthcare apps handling PHI",
+          "required": true
+        },
+        "ehr_integration": {
+          "weight": 0.03,
+          "percentage": "3%",
+          "rationale": "Integration with EHR systems (Epic, Cerner, etc.)",
+          "required": true
+        },
+        "data_privacy": {
+          "weight": 0.02,
+          "percentage": "2%",
+          "rationale": "Data encryption, privacy policy, PHI handling",
+          "required": true
+        }
+      },
+      "weight_adjustments": {
+        "description": "Reduce other weights proportionally to accommodate +10% for healthcare",
+        "adjustment_factor": 0.90
+      }
+    },
+    "fintech": {
+      "additional_deliverables": {
+        "pci_dss_compliance": {
+          "weight": 0.05,
+          "percentage": "5%",
+          "rationale": "Required for apps processing payments",
+          "required": true
+        },
+        "financial_regulations": {
+          "weight": 0.03,
+          "percentage": "3%",
+          "rationale": "Compliance with financial regulations (SOX, KYC/AML, etc.)",
+          "required": true
+        },
+        "security_audit": {
+          "weight": 0.02,
+          "percentage": "2%",
+          "rationale": "Security audit plan and penetration testing",
+          "required": true
+        }
+      },
+      "weight_adjustments": {
+        "description": "Reduce other weights proportionally to accommodate +10% for fintech",
+        "adjustment_factor": 0.90
+      }
+    },
+    "ecommerce": {
+      "additional_deliverables": {
+        "pci_dss_compliance": {
+          "weight": 0.05,
+          "percentage": "5%",
+          "rationale": "Required for apps processing payments",
+          "required": true
+        },
+        "gdpr_privacy": {
+          "weight": 0.03,
+          "percentage": "3%",
+          "rationale": "GDPR compliance for EU customers, privacy policy",
+          "required": false
+        }
+      },
+      "weight_adjustments": {
+        "description": "Reduce other weights proportionally to accommodate +5-8% for e-commerce",
+        "adjustment_factor": 0.95
+      }
+    }
+  },
+  "calculation_example": {
+    "project": "Fitness Tracking App",
+    "deliverables": {
+      "feature_list": 100,
+      "tech_stack": 100,
+      "success_metrics": 75,
+      "mvp_scope": 50,
+      "problem_statement": 100,
+      "user_personas": 75,
+      "user_stories": 0,
+      "non_functional_requirements": 50
+    },
+    "calculation": {
+      "feature_list": "100 × 0.25 = 25.00%",
+      "tech_stack": "100 × 0.20 = 20.00%",
+      "success_metrics": "75 × 0.15 = 11.25%",
+      "mvp_scope": "50 × 0.15 = 7.50%",
+      "problem_statement": "100 × 0.10 = 10.00%",
+      "user_personas": "75 × 0.07 = 5.25%",
+      "user_stories": "0 × 0.05 = 0.00%",
+      "non_functional_requirements": "50 × 0.03 = 1.50%"
+    },
+    "total_confidence": 80.50,
+    "threshold": 95.00,
+    "gap": -14.50,
+    "status": "BLOCKED",
+    "next_steps": [
+      {
+        "action": "Complete User Stories",
+        "impact": "+5.00%",
+        "new_confidence": "85.50%"
+      },
+      {
+        "action": "Complete MVP Scope",
+        "impact": "+7.50%",
+        "new_confidence": "93.00%"
+      },
+      {
+        "action": "Complete Success Metrics",
+        "impact": "+3.75%",
+        "new_confidence": "96.75%",
+        "meets_threshold": true
+      }
+    ]
+  }
+}

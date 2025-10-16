@@ -1,0 +1,213 @@
+{
+  "version": "1.0",
+  "minimum_confidence": 95,
+  "blocks": [
+    {
+      "id": "missing_tech_stack",
+      "type": "critical",
+      "condition": "tech_stack_completion < 100",
+      "message": "🚨 CRITICAL: Tech Stack Incomplete",
+      "reason": "Architecture phase requires complete tech stack definition. Cannot design system architecture without knowing frontend framework, backend language, database type, authentication provider, and hosting platform.",
+      "impact": "Blocks progression to Architecture phase",
+      "resolution": "Complete all 5 tech stack components:\n  • Frontend Framework\n  • Backend Language/Framework\n  • Database Type\n  • Authentication Provider\n  • Hosting/Deployment Platform",
+      "agent": "architect",
+      "required_components": [
+        "frontend",
+        "backend",
+        "database",
+        "auth",
+        "hosting"
+      ]
+    },
+    {
+      "id": "conflicting_features",
+      "type": "critical",
+      "condition": "feature_conflicts_detected > 0",
+      "message": "🚨 CRITICAL: Conflicting Features Detected",
+      "reason": "System cannot be built with contradictory requirements. Must resolve conflicts before proceeding.",
+      "examples": [
+        {
+          "conflict": "Real-time collaboration + Static site hosting",
+          "reason": "Real-time features require WebSocket backend, incompatible with static hosting",
+          "resolution": "Use serverless functions + WebSocket service (Pusher, Ably) OR choose dynamic hosting"
+        },
+        {
+          "conflict": "Offline-first + Server-side rendering",
+          "reason": "SSR requires server for each request, conflicts with offline-first architecture",
+          "resolution": "Choose one: PWA for offline OR SSR for SEO"
+        },
+        {
+          "conflict": "Complex data processing + Serverless architecture",
+          "reason": "Serverless has execution time limits (10-15min), unsuitable for long-running processes",
+          "resolution": "Use background job queue (BullMQ, Celery) OR dedicated compute instances"
+        },
+        {
+          "conflict": "Complex relational queries + NoSQL database",
+          "reason": "NoSQL not optimized for joins and complex relationships",
+          "resolution": "Use relational database (PostgreSQL, MySQL)"
+        }
+      ],
+      "impact": "Blocks progression - system cannot be built with contradictory requirements",
+      "resolution": "Review conflicting features and choose one approach. Document why alternative was rejected.",
+      "agent": "validator"
+    },
+    {
+      "id": "low_confidence",
+      "type": "critical",
+      "condition": "overall_confidence < 95",
+      "message": "🚨 CRITICAL: Confidence Below Threshold",
+      "reason": "PRD too vague to proceed to architecture phase. High risk of rework and scope creep.",
+      "threshold": 95,
+      "impact": "Blocks progression until requirements clarified",
+      "resolution": "See /forge-status for specific deliverables needing completion",
+      "agent": "validator"
+    },
+    {
+      "id": "vague_features",
+      "type": "critical",
+      "condition": "feature_list_completion < 75",
+      "message": "🚨 CRITICAL: Features Too Vague",
+      "reason": "Cannot build without clear feature definitions. Acceptance criteria missing or incomplete.",
+      "examples": [
+        {
+          "vague": "User dashboard",
+          "specific": "User dashboard showing: workout history (last 30 days), progress charts (weight/reps over time), upcoming scheduled workouts, personal records"
+        },
+        {
+          "vague": "Payment system",
+          "specific": "Stripe integration for: monthly subscriptions ($9.99/mo), annual plans ($99/year with 2 months free), payment method management, invoice history"
+        },
+        {
+          "vague": "Analytics",
+          "specific": "Analytics dashboard showing: daily active users, feature usage heatmap, conversion funnel (signup → first action → retention), user session recordings"
+        }
+      ],
+      "impact": "High risk of misaligned implementation",
+      "resolution": "Add acceptance criteria to each feature. Define what 'done' looks like:\n  • What data/content is shown\n  • How users interact with it\n  • What actions they can take\n  • What the result looks like",
+      "agent": "analyst"
+    },
+    {
+      "id": "missing_compliance",
+      "type": "critical",
+      "condition": "industry_compliance_required && compliance_plan_missing",
+      "message": "🚨 CRITICAL: Industry Compliance Plan Missing",
+      "industries": {
+        "healthcare": {
+          "required": [
+            "HIPAA Compliance Plan",
+            "PHI Handling Protocol",
+            "Data Encryption Spec",
+            "EHR Integration Plan"
+          ],
+          "reason": "Healthcare apps handling PHI must comply with HIPAA regulations",
+          "questions": [
+            "Will you store Protected Health Information (PHI)?",
+            "Do you need HIPAA compliance?",
+            "What EHR systems need integration?",
+            "What data encryption standards are required?"
+          ],
+          "weight_addition": 0.10
+        },
+        "fintech": {
+          "required": [
+            "PCI-DSS Compliance",
+            "Financial Regulations Doc",
+            "Security Audit Plan",
+            "KYC/AML Procedures"
+          ],
+          "reason": "Financial apps handling payments must comply with PCI-DSS and financial regulations",
+          "questions": [
+            "Will you process credit card payments?",
+            "What financial regulations apply (PCI-DSS, SOX, etc.)?",
+            "Do you need KYC/AML verification?",
+            "What security audit requirements exist?"
+          ],
+          "weight_addition": 0.10
+        },
+        "ecommerce": {
+          "required": [
+            "PCI-DSS Compliance",
+            "GDPR/Privacy Policy",
+            "Payment Security Plan"
+          ],
+          "reason": "E-commerce apps processing payments must comply with PCI-DSS",
+          "questions": [
+            "Will you process payments directly or use a provider (Stripe, PayPal)?",
+            "Do you need PCI-DSS compliance?",
+            "What regions will you operate in? (affects GDPR, CCPA)"
+          ],
+          "weight_addition": 0.05
+        }
+      },
+      "impact": "Legal/regulatory risk - cannot launch without compliance",
+      "resolution": "Add industry-specific compliance deliverables to PRD",
+      "agent": "analyst"
+    }
+  ],
+  "warnings": [
+    {
+      "id": "unclear_mvp_scope",
+      "type": "warning",
+      "condition": "mvp_scope_completion < 75",
+      "message": "⚠️  WARNING: MVP Scope Unclear",
+      "reason": "Unclear what's in v1 vs v2+. High risk of scope creep and delayed launch.",
+      "impact": "Warning only - does not block progression if overall confidence >= 95%",
+      "resolution": "Clearly define:\n  • What's in MVP (v1.0)\n  • What's deferred to v2+\n  • Why each item is in/out",
+      "agent": "pm"
+    },
+    {
+      "id": "missing_success_metrics",
+      "type": "warning",
+      "condition": "success_metrics_completion < 75",
+      "message": "⚠️  WARNING: Success Metrics Unclear",
+      "reason": "No clear definition of 'success'. Risk of building features that don't drive outcomes.",
+      "impact": "Warning only - does not block progression if overall confidence >= 95%",
+      "resolution": "Define 3-5 KPIs:\n  • What to measure\n  • Target values\n  • How to measure\n  • When to measure",
+      "agent": "pm"
+    }
+  ],
+  "validation_sequence": [
+    {
+      "order": 1,
+      "check": "tech_stack",
+      "required": true,
+      "message": "Validating tech stack completeness..."
+    },
+    {
+      "order": 2,
+      "check": "feature_conflicts",
+      "required": true,
+      "message": "Checking for conflicting requirements..."
+    },
+    {
+      "order": 3,
+      "check": "compliance",
+      "required": true,
+      "message": "Verifying industry compliance requirements..."
+    },
+    {
+      "order": 4,
+      "check": "feature_clarity",
+      "required": true,
+      "message": "Analyzing feature specifications..."
+    },
+    {
+      "order": 5,
+      "check": "overall_confidence",
+      "required": true,
+      "message": "Calculating weighted confidence score..."
+    },
+    {
+      "order": 6,
+      "check": "mvp_scope",
+      "required": false,
+      "message": "Checking MVP scope definition..."
+    },
+    {
+      "order": 7,
+      "check": "success_metrics",
+      "required": false,
+      "message": "Validating success metrics..."
+    }
+  ]
+}
