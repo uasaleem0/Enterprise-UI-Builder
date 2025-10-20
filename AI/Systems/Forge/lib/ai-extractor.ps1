@@ -56,6 +56,7 @@ function Invoke-OpenAIExtraction {
         [string]$Model = 'gpt-4o-mini'
     )
     $apiKey = Get-EnvOrNull 'OPENAI_API_KEY'
+    if ($apiKey) { $apiKey = $apiKey.Trim(); $apiKey = $apiKey.Trim('"','\'') }
     if (-not $apiKey) { throw 'OPENAI_API_KEY not set' }
     $body = @{ 
         model = $Model
@@ -78,6 +79,7 @@ function Invoke-AnthropicExtraction {
         [string]$Model = 'claude-3-5-sonnet-20240620'
     )
     $apiKey = Get-EnvOrNull 'ANTHROPIC_API_KEY'
+    if ($apiKey) { $apiKey = $apiKey.Trim(); $apiKey = $apiKey.Trim('"','\'') }
     if (-not $apiKey) { throw 'ANTHROPIC_API_KEY not set' }
     $headers = @{ 'x-api-key' = $apiKey; 'anthropic-version' = '2023-06-01'; 'content-type'='application/json' }
     $messages = @(

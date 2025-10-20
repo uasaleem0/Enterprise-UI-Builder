@@ -28,9 +28,11 @@ if (-not $modelPath -and (Test-Path (Join-Path $CurrentPath 'ai_parsed_prd.json'
 if (-not $modelPath -and (Test-Path "$CurrentPath\prd.md")) {
   $auto = $true
   try {
+    if ($env:FORGE_AI_DEBUG -eq '1') { Write-Host "[DEBUG] provider=$env:FORGE_AI_PROVIDER" -ForegroundColor DarkGray }
     $modelPath = Invoke-ForgeAIExtract -PrdPath (Join-Path $CurrentPath 'prd.md')
     Write-Host "[INFO] AI extraction complete: $modelPath" -ForegroundColor Green
   } catch {
+    if ($env:FORGE_AI_DEBUG -eq '1') { Write-Warning ("AI extraction failed: " + $_.Exception.Message) }
     $auto = $false
     # Fallback: prepare manual prompt
     try {
