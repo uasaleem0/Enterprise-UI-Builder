@@ -20,9 +20,7 @@ if (-not (Test-Path "$CurrentPath\prd.md") -and -not $modelPath) {
 $width = 78
 foreach ($a in $Args) { if ($a -match '^--width=(\d+)$') { $width = [int]$matches[1] } }
 
-$reportData = $null
-if (Test-Path "$CurrentPath\prd.md") { $reportData = Parse-PRDForReport -ProjectPath $CurrentPath }
-else { $reportData = [pscustomobject]@{ ProjectName=''; Features=@(); Scope=@{must=@();should=@();could=@()}; NfrAreas=@(); Kpis=@(); UserStories=@() } }
+$reportData = [pscustomobject]@{ ProjectName=''; Features=@(); Scope=@{must=@();should=@();could=@()}; NfrAreas=@(); Kpis=@(); UserStories=@() }
 
 # Default AI-assisted extraction: auto-consume ai_parsed_prd.json if present; otherwise prepare prompt
 if (-not $modelPath -and (Test-Path (Join-Path $CurrentPath 'ai_parsed_prd.json'))) { $modelPath = (Join-Path $CurrentPath 'ai_parsed_prd.json') }
@@ -56,7 +54,8 @@ if (-not $modelPath -and (Test-Path "$CurrentPath\prd.md")) {
     $promptPath = Join-Path $CurrentPath 'ai_prd_extract_prompt.txt'
     Set-Content -Path $promptPath -Value ($prompt -join [Environment]::NewLine) -Encoding UTF8
     Write-Host "[INFO] Prepared AI extraction prompt: $promptPath" -ForegroundColor Yellow
-    Write-Host "[INFO] Optional: Paste to your AI, save JSON as 'ai_parsed_prd.json' next to prd.md, then rerun prd-report for a richer parse." -ForegroundColor Yellow
+    Write-Host "[ACTION REQUIRED] Paste the prompt into your AI, save the JSON as 'ai_parsed_prd.json' next to prd.md, then rerun 'forge prd-report'." -ForegroundColor Yellow
+    exit 2
   } catch { }
 }
 
