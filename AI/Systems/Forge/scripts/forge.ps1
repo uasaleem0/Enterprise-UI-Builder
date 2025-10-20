@@ -1,17 +1,18 @@
 ﻿# Forge System - PowerShell Wrapper
+# (removed stray lines)
+# Forge System - PowerShell Wrapper
 # Version: 1.0
 # All Forge commands with autocomplete support
 
 param(
     [Parameter(Position=0, Mandatory=$true)]
     [ValidateSet(
-        'start', 'import', 'import-ia', 'status', 'show', 'help',
+        'start', 'import', 'status', 'show', 'help',
         'setup-repo', 'generate-issues', 'issue', 'review-pr',
         'test', 'deploy', 'fix', 'export', 'version',
         'start-workflow', 'status-workflow', 'generate-issues-workflow',
-        'note', 'session-close', 'mode',
-        'show-agent', 'health-agent', 'create-sop',
-        'dev-test', 'dev-backup', 'dev-edit', 'dev-note', 'dev-status'
+        'note', 'session-close', 'mode', 'dev-test', 'dev-backup', 'dev-edit',
+        'dev-note', 'dev-status', 'ia-sitemap-report', 'ia-userflows-report', 'prd-report', 'prd-feedback', 'prd-audit'
     )]
     [string]$Command,
 
@@ -35,8 +36,11 @@ $FoundationPath = "$ForgeRoot\foundation"
 . "$LibPath\session-tracker.ps1"
 . "$LibPath\session-formatter.ps1"
 . "$LibPath\issue-generator.ps1"
+. "$ForgeRoot\scripts\New-ForgePRDReport.ps1"
 . "$LibPath\ia-parser.ps1"
-. "$LibPath\agent-manager.ps1"
+. "$ForgeRoot\lib\ia-report-parser.ps1"
+. "$ForgeRoot\scripts\New-ForgeSitemapReport.ps1"
+. "$ForgeRoot\scripts\New-ForgeUserFlowsReport.ps1"
 
 # Color output helpers
 function Write-ForgeSuccess { param($Message) Write-Host "[OK] $Message" -ForegroundColor Green }
@@ -103,9 +107,6 @@ function Invoke-ForgeStart {
     New-Item -ItemType Directory -Path $ProjectPath -Force | Out-Null
     New-Item -ItemType File -Path "$ProjectPath\prd.md" -Force | Out-Null
 
-    # Initialize .agent/ folder
-    Initialize-AgentFolder -ProjectPath $ProjectPath -ProjectName $ProjectName
-
     Write-ForgeSuccess "Project created at: $ProjectPath"
     Write-Host ""
     Write-ForgeInfo "Next: cd into the project and start the guided workflow"
@@ -148,9 +149,6 @@ function Invoke-ForgeImport {
     New-Item -ItemType Directory -Path $ProjectPath -Force | Out-Null
     Copy-Item $PrdFile "$ProjectPath\prd.md" -Force
 
-    # Initialize .agent/ folder
-    Initialize-AgentFolder -ProjectPath $ProjectPath -ProjectName $ProjectName
-
     Write-ForgeSuccess "Project created at: $ProjectPath"
     Write-Host ""
     Write-ForgeInfo "Next: cd into the project and run 'forge status'"
@@ -159,19 +157,6 @@ function Invoke-ForgeImport {
     Write-Host "  forge status" -ForegroundColor Yellow
     Write-Host ""
     Write-ForgeInfo "The Validator Agent will analyze your PRD"
-}
-
-# Command: forge import-ia
-function Invoke-ForgeImportIA {
-    $CurrentPath = Get-Location
-
-    if (-not (Test-Path "$CurrentPath\prd.md")) {
-        Write-ForgeError "No project found. Run this from a project directory."
-        Write-ForgeInfo "Create a project first with: forge start [name]"
-        return
-    }
-
-    Import-IABlock -ProjectPath $CurrentPath
 }
 
 # Command: forge status
@@ -647,7 +632,6 @@ function Invoke-ForgeHelp {
     Write-Host "Core Commands:" -ForegroundColor Yellow
     Write-Host "  forge start [name]              Create new project from scratch"
     Write-Host "  forge import [name] [file]      Import existing PRD"
-    Write-Host "  forge import-ia                 Import Information Architecture from Custom GPT"
     Write-Host "  forge status                    Show confidence and progress"
     Write-Host "  forge show [section]            Expand section details"
     Write-Host ""
@@ -672,12 +656,6 @@ function Invoke-ForgeHelp {
     Write-Host "  forge session-close             End session and generate summary"
     Write-Host "  forge show last-session         View previous session summary"
     Write-Host "  forge show history              View all project sessions"
-    Write-Host ""
-
-    Write-Host ".agent/ Management:" -ForegroundColor Yellow
-    Write-Host "  forge show-agent                Show .agent/ documentation"
-    Write-Host "  forge health-agent              Check for .agent/ conflicts"
-    Write-Host "  forge create-sop [name]         Manually create SOP"
     Write-Host ""
 
     Write-Host "Utility Commands:" -ForegroundColor Yellow
@@ -919,77 +897,6 @@ function Invoke-ForgeDevStatus {
     Write-Host ""
 }
 
-# Command: forge show-agent
-function Invoke-ForgeShowAgent {
-    $CurrentPath = Get-Location
-
-    if (-not (Test-Path "$CurrentPath\prd.md") -and -not (Test-Path "$CurrentPath\.forge-state.json")) {
-        Write-ForgeError "No project found. Run this from a project directory."
-        return
-    }
-
-    Show-AgentDocs -ProjectPath $CurrentPath
-}
-
-# Command: forge health-agent
-function Invoke-ForgeHealthAgent {
-    $CurrentPath = Get-Location
-
-    if (-not (Test-Path "$CurrentPath\prd.md") -and -not (Test-Path "$CurrentPath\.forge-state.json")) {
-        Write-ForgeError "No project found. Run this from a project directory."
-        return
-    }
-
-    Show-AgentHealth -ProjectPath $CurrentPath
-}
-
-# Command: forge create-sop <name>
-function Invoke-ForgeCreateSOP {
-    param([string]$SOPName)
-
-    if (-not $SOPName) {
-        Write-ForgeError "SOP name required: forge create-sop [name]"
-        return
-    }
-
-    $CurrentPath = Get-Location
-
-    if (-not (Test-Path "$CurrentPath\prd.md") -and -not (Test-Path "$CurrentPath\.forge-state.json")) {
-        Write-ForgeError "No project found. Run this from a project directory."
-        return
-    }
-
-    $agentPath = Join-Path $CurrentPath ".agent"
-    if (-not (Test-Path $agentPath)) {
-        Write-ForgeError "No .agent/ folder found. This project may be from an older Forge version."
-        Write-ForgeInfo "Create .agent/ manually or start a new project."
-        return
-    }
-
-    Write-Host "`nCreating SOP: $SOPName" -ForegroundColor Cyan
-    Write-Host "-------------------------------------------------------------" -ForegroundColor DarkGray
-    Write-Host ""
-
-    $whenToUse = Read-Host "When should this SOP be used?"
-    $setup = Read-Host "Setup steps (comma-separated)"
-    Write-Host "Paste code pattern (or press Enter to skip):" -ForegroundColor Gray
-    $codePattern = Read-Host
-    $mistakes = Read-Host "Common mistakes to avoid (comma-separated)"
-
-    $context = @{
-        WhenToUse = $whenToUse
-        Setup = $setup -split ',' | ForEach-Object { "- $_" }
-        Language = "typescript"
-        CodePattern = if ($codePattern) { $codePattern } else { "// Pattern goes here" }
-        CommonMistakes = ($mistakes -split ',') | ForEach-Object { "- [AVOID] $_" }
-        RelatedDocs = @("- ../system/project-architecture.md")
-    }
-
-    New-AgentSOP -ProjectPath $CurrentPath -SOPName $SOPName -Context $context -ComplexityScore 10
-    Write-Host ""
-    Write-ForgeSuccess "SOP created: .agent/sops/$SOPName.md"
-}
-
 # Initialize session tracking for project commands
 Initialize-SessionTracking
 
@@ -997,12 +904,13 @@ Initialize-SessionTracking
 switch ($Command) {
     'start'                     { if ($Arguments) { Invoke-ForgeStart $Arguments[0] } else { Invoke-ForgeStart } }
     'import'                    { if ($Arguments.Count -ge 2) { Invoke-ForgeImport $Arguments[0] $Arguments[1] } else { Invoke-ForgeImport } }
-    'import-ia'                 { Invoke-ForgeImportIA }
     'status'                    { Invoke-ForgeStatus }
     'show'                      { if ($Arguments) { Invoke-ForgeShow $Arguments[0] } else { Invoke-ForgeShow } }
     'setup-repo'                { if ($Arguments) { Invoke-ForgeSetupRepo $Arguments[0] } else { Invoke-ForgeSetupRepo } }
     'generate-issues'           { Invoke-ForgeGenerateIssues }
     'issue'                     { if ($Arguments) { Invoke-ForgeIssue $Arguments[0] } else { Invoke-ForgeIssue } }
+    'ia-sitemap-report'         { & "$ForgeRoot\scripts\forge-ia-sitemap-report.ps1" @Arguments }
+    'ia-userflows-report'       { & "$ForgeRoot\scripts\forge-ia-userflows-report.ps1" @Arguments }
     'review-pr'                 { if ($Arguments) { Invoke-ForgeReviewPR $Arguments[0] } else { Invoke-ForgeReviewPR } }
     'test'                      { Invoke-ForgeTest }
     'deploy'                    { Invoke-ForgeDeploy }
@@ -1013,9 +921,6 @@ switch ($Command) {
     'note'                      { if ($Arguments) { Invoke-ForgeNote ($Arguments -join ' ') } else { Invoke-ForgeNote } }
     'session-close'             { Invoke-ForgeSessionClose }
     'mode'                      { if ($Arguments) { Invoke-ForgeMode $Arguments[0] } else { Invoke-ForgeMode } }
-    'show-agent'                { Invoke-ForgeShowAgent }
-    'health-agent'              { Invoke-ForgeHealthAgent }
-    'create-sop'                { if ($Arguments) { Invoke-ForgeCreateSOP $Arguments[0] } else { Invoke-ForgeCreateSOP } }
     'dev-test'                  { Invoke-ForgeDevTest }
     'dev-backup'                { Invoke-ForgeDevBackup }
     'dev-edit'                  { if ($Arguments) { Invoke-ForgeDevEdit $Arguments[0] } else { Invoke-ForgeDevEdit } }
@@ -1024,6 +929,12 @@ switch ($Command) {
     'start-workflow'            { & "$ForgeRoot\scripts\forge-start-workflow.ps1" @Arguments }
     'status-workflow'           { & "$ForgeRoot\scripts\forge-status-workflow.ps1" }
     'generate-issues-workflow'  { & "$ForgeRoot\scripts\forge-generate-issues-workflow.ps1" }
+
+    'prd-report'                { & "$ForgeRoot\scripts\forge-prd-report.ps1" @Arguments }
+    'prd-feedback'              { & "$ForgeRoot\scripts\forge-prd-feedback.ps1" @Arguments }
+    'prd-audit'                 { & "$ForgeRoot\scripts\forge-prd-feedback.ps1" @Arguments }
     default                     { Invoke-ForgeHelp }
 }
+
+
 
