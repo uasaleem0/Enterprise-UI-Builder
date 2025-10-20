@@ -32,6 +32,35 @@ try {
 # Parse PRD model and raw text
 $tempDir = Split-Path $Path -Parent
 $reportData = Parse-PRDForReport -ProjectPath $tempDir
+# Prefer merged AI-extracted model if present next to PRD
+try {
+  $aiModel = Join-Path $tempDir 'ai_parsed_prd.json'
+  if (Test-Path $aiModel) {
+    $ai = Get-Content -Path $aiModel -Raw -Encoding UTF8 | ConvertFrom-Json
+    function _Norm([string]$s){ if(-not $s){ return '' }; return (($s.ToLower() -replace '[^a-z0-9 ]','').Trim()) }
+    foreach($af in $ai.features){
+      $an = _Norm $af.name
+      if (-not $an) { continue }
+      $match = $null
+      foreach($rf in $reportData.Features){ if (_Norm $rf.Name -eq $an) { $match = $rf; break } }
+      if (-not $match) {
+        $match = [pscustomobject]@{ Name=$af.name; Scope='UNKNOWN'; Description=''; AcceptanceDone=0; AcceptanceTotal=0; Stories=@(); NfrAreas=@(); Kpis=@() }
+        $reportData.Features += ,$match
+      }
+      if (-not $match.Description -and $af.PSObject.Properties.Name -contains 'description' -and $af.description){ $match | Add-Member -NotePropertyName Description -NotePropertyValue $af.description -Force }
+      if ($af.PSObject.Properties.Name -contains 'stories' -and $af.stories){ $match | Add-Member -NotePropertyName Stories -NotePropertyValue (@($match.Stories + $af.stories) | Select-Object -Unique) -Force }
+      if ($af.PSObject.Properties.Name -contains 'nfr' -and $af.nfr){ $match | Add-Member -NotePropertyName NfrAreas -NotePropertyValue (@($match.NfrAreas + $af.nfr) | Select-Object -Unique) -Force }
+      if ($af.PSObject.Properties.Name -contains 'kpis' -and $af.kpis){ $match | Add-Member -NotePropertyName Kpis -NotePropertyValue (@($match.Kpis + $af.kpis) | Select-Object -Unique) -Force }
+      if ($af.PSObject.Properties.Name -contains 'acceptance' -and $af.acceptance){
+        $total = ($af.acceptance | Measure-Object).Count
+        $done = 0
+        foreach($aic in $af.acceptance){ if ($aic -match '(?i)must|shall|given|when|then') { $done++ } }
+        if ($total -gt 0){ $match | Add-Member -NotePropertyName AcceptanceTotal -NotePropertyValue $total -Force; $match | Add-Member -NotePropertyName AcceptanceDone -NotePropertyValue $done -Force }
+      }
+      if ($af.PSObject.Properties.Name -contains 'scope' -and $af.scope){ $match | Add-Member -NotePropertyName Scope -NotePropertyValue ([string]$af.scope).ToUpper() -Force }
+    }
+  }
+} catch {}
 $prdText = Get-Content -Path $Path -Raw -Encoding UTF8
 
 $features = @($reportData.Features)

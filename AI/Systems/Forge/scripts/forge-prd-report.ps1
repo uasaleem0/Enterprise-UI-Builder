@@ -6,6 +6,7 @@ $ForgeRoot = Split-Path -Parent $ScriptRoot
 . "$ForgeRoot\lib\ia-report-parser.ps1"
 . "$ForgeRoot\lib\semantic-validator.ps1"
 . "$ForgeRoot\lib\state-manager.ps1"
+. "$ForgeRoot\lib\ai-extractor.ps1"
 . "$ForgeRoot\scripts\New-ForgePRDReport.ps1"
 
 $CurrentPath = Get-Location
@@ -22,11 +23,18 @@ foreach ($a in $Args) { if ($a -match '^--width=(\d+)$') { $width = [int]$matche
 
 $reportData = [pscustomobject]@{ ProjectName=''; Features=@(); Scope=@{must=@();should=@();could=@()}; NfrAreas=@(); Kpis=@(); UserStories=@() }
 
-# Default AI-assisted extraction: auto-consume ai_parsed_prd.json if present; otherwise prepare prompt
+# Default AI-assisted extraction: prefer existing model; else auto-call provider or emit prompt
 if (-not $modelPath -and (Test-Path (Join-Path $CurrentPath 'ai_parsed_prd.json'))) { $modelPath = (Join-Path $CurrentPath 'ai_parsed_prd.json') }
 if (-not $modelPath -and (Test-Path "$CurrentPath\prd.md")) {
+  $auto = $true
   try {
-    $schema = @'
+    $modelPath = Invoke-ForgeAIExtract -PrdPath (Join-Path $CurrentPath 'prd.md')
+    Write-Host "[INFO] AI extraction complete: $modelPath" -ForegroundColor Green
+  } catch {
+    $auto = $false
+    # Fallback: prepare manual prompt
+    try {
+      $schema = @'
 {
   "projectName": "",
   "scope": { "must": [], "should": [], "could": [] },
@@ -35,28 +43,30 @@ if (-not $modelPath -and (Test-Path "$CurrentPath\prd.md")) {
   ]
 }
 '@
-    $txt = Get-Content -Path (Join-Path $CurrentPath 'prd.md') -Raw -Encoding UTF8
-    $prompt = @()
-    $prompt += 'You are extracting structured data from the PRD below.'
-    $prompt += 'Rules:'
-    $prompt += '- Do NOT invent or assume; only extract info explicitly present.'
-    $prompt += '- Include exact lines in acceptance/stories where possible.'
-    $prompt += '- Use only the provided JSON schema.'
-    $prompt += '- If an item is not present, omit it (do not guess).'
-    $prompt += ''
-    $prompt += 'JSON schema:'
-    $prompt += $schema
-    $prompt += ''
-    $prompt += 'PRD content starts:'
-    $prompt += '-----'
-    $prompt += $txt
-    $prompt += '-----'
-    $promptPath = Join-Path $CurrentPath 'ai_prd_extract_prompt.txt'
-    Set-Content -Path $promptPath -Value ($prompt -join [Environment]::NewLine) -Encoding UTF8
-    Write-Host "[INFO] Prepared AI extraction prompt: $promptPath" -ForegroundColor Yellow
-    Write-Host "[ACTION REQUIRED] Paste the prompt into your AI, save the JSON as 'ai_parsed_prd.json' next to prd.md, then rerun 'forge prd-report'." -ForegroundColor Yellow
-    exit 2
-  } catch { }
+      $txt = Get-Content -Path (Join-Path $CurrentPath 'prd.md') -Raw -Encoding UTF8
+      $prompt = @()
+      $prompt += 'You are extracting structured data from the PRD below.'
+      $prompt += 'Rules:'
+      $prompt += '- Do NOT invent or assume; only extract info explicitly present.'
+      $prompt += '- You may make implicit items explicit if directly inferable; mark such features as derived=true.'
+      $prompt += '- Include exact lines in acceptance/stories where possible.'
+      $prompt += '- Use only the provided JSON schema.'
+      $prompt += '- If an item is not present, omit it (do not guess).'
+      $prompt += ''
+      $prompt += 'JSON schema:'
+      $prompt += $schema
+      $prompt += ''
+      $prompt += 'PRD content starts:'
+      $prompt += '-----'
+      $prompt += $txt
+      $prompt += '-----'
+      $promptPath = Join-Path $CurrentPath 'ai_prd_extract_prompt.txt'
+      Set-Content -Path $promptPath -Value ($prompt -join [Environment]::NewLine) -Encoding UTF8
+      Write-Host "[INFO] Prepared AI extraction prompt: $promptPath" -ForegroundColor Yellow
+      Write-Host "[ACTION REQUIRED] Paste the prompt into your AI, save the JSON as 'ai_parsed_prd.json' next to prd.md, then rerun 'forge prd-report'." -ForegroundColor Yellow
+      exit 2
+    } catch { throw $_ }
+  }
 }
 
 # Optional: merge AI-extracted model
