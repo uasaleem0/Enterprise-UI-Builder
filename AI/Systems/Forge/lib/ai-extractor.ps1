@@ -1,4 +1,10 @@
-function Get-EnvOrNull { param([string]$Name) if ($env:$Name) { return $env:$Name } return $null }
+function Get-EnvOrNull {
+    param([string]$Name)
+    $val = [Environment]::GetEnvironmentVariable($Name,'Process')
+    if (-not $val) { $val = [Environment]::GetEnvironmentVariable($Name,'User') }
+    if (-not $val) { $val = [Environment]::GetEnvironmentVariable($Name,'Machine') }
+    return $val
+}
 
 function Build-PrdExtractionPrompt {
     param(
@@ -104,4 +110,3 @@ function Invoke-ForgeAIExtract {
     Set-Content -Path $OutJsonPath -Value ($jsonText.Trim()) -Encoding UTF8
     return $OutJsonPath
 }
-
