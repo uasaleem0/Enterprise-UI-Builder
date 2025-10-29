@@ -7,6 +7,14 @@ function Get-CurrentAI {
         return $env:FORGE_AI
     }
 
+    # If running in plain PowerShell console, prefer labeling as PowerShell/CLI
+    try {
+        if ($Host -and $Host.Name -match 'ConsoleHost') {
+            $env:FORGE_AI = 'PowerShell'
+            return 'PowerShell'
+        }
+    } catch {}
+
     # Try to auto-detect from environment
     $detected = $null
 
@@ -32,7 +40,7 @@ function Get-CurrentAI {
     # Fallback: prompt user once (works in all IDEs/terminals)
     Write-Host ""
     Write-Host "Which AI are you using? " -NoNewline -ForegroundColor Cyan
-    Write-Host "[C]laude / Co[d]ex / [W]arp / [Enter for Claude]: " -NoNewline -ForegroundColor Yellow
+    Write-Host "[C]laude / Co[d]ex / [W]arp / [P]owerShell / [Enter for PowerShell]: " -NoNewline -ForegroundColor Yellow
     $response = (Read-Host).ToUpper()
 
     # Map response to AI name
@@ -41,8 +49,9 @@ function Get-CurrentAI {
         'D' { 'Codex' }
         'X' { 'Codex' }
         'W' { 'Warp' }
-        '' { 'Claude' }
-        default { 'Claude' }
+        'P' { 'PowerShell' }
+        '' { 'PowerShell' }
+        default { 'PowerShell' }
     }
 
     # Save to env for this PowerShell session

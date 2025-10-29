@@ -3,9 +3,10 @@ param([string[]]$Args)
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ForgeRoot = Split-Path -Parent $ScriptRoot
 
-. "$ForgeRoot\lib\semantic-validator.ps1"
+. "$ForgeRoot\lib\prd-completeness-validator.ps1"
 . "$ForgeRoot\lib\state-manager.ps1"
-. "$ForgeRoot\lib\ia-report-parser.ps1"
+. "$ForgeRoot\lib\prd-semantic-analyzer.ps1"
+. "$ForgeRoot\lib\readiness.ps1"
 
 $Path = $null
 foreach ($a in $Args) { if ($a -match '^--path=(.+)$') { $Path = $matches[1] } }
@@ -21,146 +22,109 @@ if (-not (Test-Path $Path)) {
 
 function To-Ascii([string]$s){ if(-not $s){ return '' }; $s = $s -replace "[\u2018\u2019]","'" -replace "[\u201C\u201D]", '"' -replace "[\u2013\u2014\u2212]", '-' -replace "\u2026", '...' ; $chars=$s.ToCharArray(); for($i=0;$i -lt $chars.Length;$i++){ if([int]$chars[$i] -gt 127){ $chars[$i] = [char]'?' } }; return -join $chars }
 
-# Analyze PRD deliverables and diagnostics
-$completion = $null
-$diagnostics = $null
-try {
-  $completion = Get-SemanticPrdCompletion -PrdPath $Path
-  $diagnostics = Get-SemanticPrdDiagnostics -PrdPath $Path
-} catch {}
-
-# Parse PRD model and raw text
-$tempDir = Split-Path $Path -Parent
-$reportData = Parse-PRDForReport -ProjectPath $tempDir
-# Prefer merged AI-extracted model if present next to PRD
-try {
-  $aiModel = Join-Path $tempDir 'ai_parsed_prd.json'
-  if (Test-Path $aiModel) {
-    $ai = Get-Content -Path $aiModel -Raw -Encoding UTF8 | ConvertFrom-Json
-    function _Norm([string]$s){ if(-not $s){ return '' }; return (($s.ToLower() -replace '[^a-z0-9 ]','').Trim()) }
-    foreach($af in $ai.features){
-      $an = _Norm $af.name
-      if (-not $an) { continue }
-      $match = $null
-      foreach($rf in $reportData.Features){ if (_Norm $rf.Name -eq $an) { $match = $rf; break } }
-      if (-not $match) {
-        $match = [pscustomobject]@{ Name=$af.name; Scope='UNKNOWN'; Description=''; AcceptanceDone=0; AcceptanceTotal=0; Stories=@(); NfrAreas=@(); Kpis=@() }
-        $reportData.Features += ,$match
-      }
-      if (-not $match.Description -and $af.PSObject.Properties.Name -contains 'description' -and $af.description){ $match | Add-Member -NotePropertyName Description -NotePropertyValue $af.description -Force }
-      if ($af.PSObject.Properties.Name -contains 'stories' -and $af.stories){ $match | Add-Member -NotePropertyName Stories -NotePropertyValue (@($match.Stories + $af.stories) | Select-Object -Unique) -Force }
-      if ($af.PSObject.Properties.Name -contains 'nfr' -and $af.nfr){ $match | Add-Member -NotePropertyName NfrAreas -NotePropertyValue (@($match.NfrAreas + $af.nfr) | Select-Object -Unique) -Force }
-      if ($af.PSObject.Properties.Name -contains 'kpis' -and $af.kpis){ $match | Add-Member -NotePropertyName Kpis -NotePropertyValue (@($match.Kpis + $af.kpis) | Select-Object -Unique) -Force }
-      if ($af.PSObject.Properties.Name -contains 'acceptance' -and $af.acceptance){
-        $total = ($af.acceptance | Measure-Object).Count
-        $done = 0
-        foreach($aic in $af.acceptance){ if ($aic -match '(?i)must|shall|given|when|then') { $done++ } }
-        if ($total -gt 0){ $match | Add-Member -NotePropertyName AcceptanceTotal -NotePropertyValue $total -Force; $match | Add-Member -NotePropertyName AcceptanceDone -NotePropertyValue $done -Force }
-      }
-      if ($af.PSObject.Properties.Name -contains 'scope' -and $af.scope){ $match | Add-Member -NotePropertyName Scope -NotePropertyValue ([string]$af.scope).ToUpper() -Force }
-    }
-  }
-} catch {}
+# Get PRD content
 $prdText = Get-Content -Path $Path -Raw -Encoding UTF8
 
-$features = @($reportData.Features)
-$must = @($features | Where-Object { $_.Scope -eq 'MUST' })
-$covSet = if ($must.Count -gt 0) { $must } else { $features }
-$tot = ($covSet | Measure-Object).Count; if ($tot -lt 1) { $tot = 1 }
-
-$withStories = (@($covSet | Where-Object { $_.Stories -and $_.Stories.Count -gt 0 }) | Measure-Object).Count
-$withNfrs    = (@($covSet | Where-Object { $_.NfrAreas -and $_.NfrAreas.Count -gt 0 }) | Measure-Object).Count
-$withKpis    = (@($covSet | Where-Object { $_.Kpis -and $_.Kpis.Count -gt 0 }) | Measure-Object).Count
-
-# Partial acceptance credit
-$accScores = 0.0
-foreach($f in $covSet){
-  $accTotal = if ($f.PSObject.Properties.Name -contains 'AcceptanceTotal') { [int]$f.AcceptanceTotal } else { 0 }
-  $hasStories = ($f.Stories -and $f.Stories.Count -gt 0)
-  $score = 0.0
-  if ($accTotal -ge 3) { $score = 1.0 }
-  elseif ($accTotal -eq 2) { $score = 0.67 }
-  elseif ($accTotal -eq 1) { $score = 0.33 }
-  elseif ($accTotal -eq 0 -and $hasStories) { $score = 0.5 }
-  $accScores += $score
-}
-$accPct = [math]::Round(100.0 * ($accScores / $tot), 2)
-
-$storyPct = [math]::Round(100.0 * $withStories / $tot, 2)
-$nfrPct   = [math]::Round(100.0 * $withNfrs   / $tot, 2)
-$kpiPct   = [math]::Round(100.0 * $withKpis   / $tot, 2)
-$coverage = [math]::Round(($storyPct*0.4 + $accPct*0.2 + $nfrPct*0.2 + $kpiPct*0.2), 2)
-
-$confidence = $null
-try { if ($completion) { $confidence = Update-ProjectConfidence -ProjectPath $CurrentPath -Deliverables $completion } } catch {}
-$finalConfidence = if ($confidence -ne $null) { [math]::Round([math]::Min($confidence, $coverage), 2) } else { $coverage }
+# Enforce pipeline: refresh state, then read from state
+Refresh-ProjectState -ProjectPath $CurrentPath | Out-Null
+$state = Get-ProjectState -ProjectPath $CurrentPath
+$completion = $state.deliverables
+$confidence = $state.confidence
+$semanticAnalysis = $state.semantic_analysis
+# Section-level diagnostics for actionable suggestions
+$diagnostics = $null
+try { $diagnostics = Get-SemanticPrdDiagnostics -PrdPath $Path } catch {}
 
 # Prepare structured feedback
 $rule = ('=' * 78)
 $sep  = ('-' * 78)
 
-# Strengths
+# Strengths - based on deliverable completion
 $strengths = New-Object System.Collections.Generic.List[string]
 if ($completion) {
-  foreach($k in $completion.Keys){ if ($completion[$k] -ge 95){ $nm = ($k -replace '_',' '); $strengths.Add("Deliverable near-complete: " + $nm + " (" + $completion[$k] + "%)") } }
+  foreach($k in $completion.Keys){
+    if ($completion[$k] -ge 95){
+      $nm = ($k -replace '_',' ')
+      $strengths.Add("Deliverable near-complete: " + $nm + " (" + $completion[$k] + "%)")
+    }
+  }
 }
-foreach($f in ($covSet | Where-Object { $_.AcceptanceTotal -ge 3 })) { $strengths.Add("Feature ready: " + $f.Name + " (3+ acceptance)") }
-foreach($f in ($covSet | Where-Object { $_.Stories -and $_.Stories.Count -gt 0 -and $_.Kpis -and $_.Kpis.Count -gt 0 })) { $strengths.Add("Feature aligns with KPI: " + $f.Name) }
-if ($strengths.Count -eq 0) { $strengths.Add("Base structure present; begin by tightening MUST features.") }
+if ($semanticAnalysis) {
+  if (-not $semanticAnalysis.contradictions -or $semanticAnalysis.contradictions.Count -eq 0) {
+    $strengths.Add("No contradictions detected")
+  }
+  if (-not $semanticAnalysis.impossibilities -or $semanticAnalysis.impossibilities.Count -eq 0) {
+    $strengths.Add("No impossibilities detected")
+  }
+}
+if ($strengths.Count -eq 0) {
+  $strengths.Add("Base structure present; improve deliverable completion.")
+}
 
-# Improvement Areas (deliverables and traceability)
+# Improvement Areas - based on deliverables and semantic analysis
 $improve = New-Object System.Collections.Generic.List[string]
 if ($completion) {
-  foreach($k in $completion.Keys){ if ($completion[$k] -lt 100){ $nm=($k -replace '_',' '); $improve.Add("Complete '" + $nm + "' to 100% (current: " + $completion[$k] + "%)") } }
+  foreach($k in $completion.Keys){
+    if ($completion[$k] -lt 100){
+      $nm=($k -replace '_',' ')
+      $improve.Add("Complete '" + $nm + "' to 100% (current: " + $completion[$k] + "%)")
+    }
+  }
 }
-$missingStories = @($covSet | Where-Object { -not $_.Stories -or $_.Stories.Count -eq 0 }) | Select-Object -First 5
-if ($missingStories.Count -gt 0){ $improve.Add("Add user stories for: " + (($missingStories | ForEach-Object { $_.Name }) -join '; ')) }
-$weakAcceptance = @($covSet | Where-Object { -not $_.AcceptanceTotal -or $_.AcceptanceTotal -lt 3 }) | Select-Object -First 5
-if ($weakAcceptance.Count -gt 0){ $improve.Add("Add acceptance bullets (>=3) for: " + (($weakAcceptance | ForEach-Object { $_.Name + " (" + ([int]($_.AcceptanceTotal)) + ")" }) -join '; ')) }
-$missingNfr = @($covSet | Where-Object { -not $_.NfrAreas -or $_.NfrAreas.Count -eq 0 }) | Select-Object -First 5
-if ($missingNfr.Count -gt 0){ $improve.Add("Tag NFR areas for: " + (($missingNfr | ForEach-Object { $_.Name }) -join '; ')) }
-$missingKpi = @($covSet | Where-Object { -not $_.Kpis -or $_.Kpis.Count -eq 0 }) | Select-Object -First 5
-if ($missingKpi.Count -gt 0){ $improve.Add("Link at least one KPI to: " + (($missingKpi | ForEach-Object { $_.Name }) -join '; ')) }
 
-# Ambiguity / vagueness detection (line snippets)
+# Add semantic issues to improvements
+if ($semanticAnalysis) {
+  if ($semanticAnalysis.contradictions -and $semanticAnalysis.contradictions.Count -gt 0) {
+    foreach ($c in $semanticAnalysis.contradictions) {
+      $improve.Add("Resolve contradiction: " + $c)
+    }
+  }
+  if ($semanticAnalysis.impossibilities -and $semanticAnalysis.impossibilities.Count -gt 0) {
+    foreach ($i in $semanticAnalysis.impossibilities) {
+      $improve.Add("Fix impossibility: " + $i)
+    }
+  }
+  if ($semanticAnalysis.implied_dependencies -and $semanticAnalysis.implied_dependencies.Count -gt 0) {
+    foreach ($d in ($semanticAnalysis.implied_dependencies | Select-Object -First 3)) {
+      $improve.Add("Add dependency: " + $d)
+    }
+  }
+}
+
+if ($improve.Count -eq 0) {
+  $improve.Add("PRD is complete! Ready for implementation.")
+}
+
+# Ambiguity / vagueness detection
 $ambigTerms = '(?i)\b(TBD|to be (decided|defined)|approx|maybe|possibly|likely|usually|often|optimi[sz]e|fast|easy|user[- ]friendly|robust|scalable|etc\.?|and so on|as needed)\b'
 $ambigs = @()
 foreach($ln in ($prdText -split "`n")){
   $t = $ln.Trim(); if (-not $t) { continue }
-  if ($t -match $ambigTerms){ $ambigs += ($t.Substring(0,[Math]::Min(120,$t.Length))) }
+  if ($t -match $ambigTerms){
+    $ambigs += ($t.Substring(0,[Math]::Min(120,$t.Length)))
+  }
   if ($ambigs.Count -ge 6) { break }
 }
 if ($ambigs.Count -eq 0) { $ambigs = @("No obvious ambiguity phrases detected.") }
 
-# Clash / contradiction detection (heuristics)
+# Clash / contradiction detection (basic heuristics)
 $clashes = New-Object System.Collections.Generic.List[string]
-try {
-  $low = $prdText.ToLower()
-  if ($low -match '\boffline\b|air-?gapped|no\s+cloud' -and $low -match '\bcloud\b|saas|sync|real[- ]time'){ $clashes.Add("Offline-only vs Cloud/Realtime sync both present") }
-  if ($low -match 'no\s+pii|no\s+personal\s+data' -and $low -match 'email|phone|contact|address'){ $clashes.Add("No PII stated but PII fields mentioned") }
-  if ($low -match 'no\s+payments|no\s+billing' -and $low -match 'stripe|billing|subscription|payment'){ $clashes.Add("Payments excluded but payment terms/tools mentioned") }
-  if ($low -match 'no\s+accounts|no\s+login' -and $low -match 'login|auth|oauth|signup'){ $clashes.Add("Accounts excluded but authentication present") }
-} catch {}
-if ($clashes.Count -eq 0) { $clashes.Add("No direct contradictions detected.") }
-
-# Draft acceptance (from stories) for top weak features
-$drafts = New-Object System.Collections.Generic.List[string]
-foreach($f in ($weakAcceptance | Select-Object -First 3)){
-  $story = if ($f.Stories -and $f.Stories.Count -gt 0) { $f.Stories[0] } else { $null }
-  if ($story) {
-    $drafts.Add("Feature: " + $f.Name)
-    $drafts.Add("  - Given a valid user context, When the user performs the primary action from the story, Then the system records the outcome and updates state without errors.")
-    $drafts.Add("  - Given an invalid input, When the user submits, Then a clear validation error is shown and no data is persisted.")
-    $drafts.Add("  - Given a network disruption, When the user retries, Then the system resumes gracefully and does not duplicate actions.")
+if ($semanticAnalysis -and $semanticAnalysis.contradictions -and $semanticAnalysis.contradictions.Count -gt 0) {
+  foreach ($c in $semanticAnalysis.contradictions) {
+    $clashes.Add($c)
   }
 }
-if ($drafts.Count -eq 0) { $drafts.Add("(No acceptance drafts generated; add a user story first.)") }
+if ($clashes.Count -eq 0) { $clashes.Add("No direct contradictions detected.") }
 
 # Output: structured, copy-pastable feedback
 Write-Host $rule -ForegroundColor Cyan
 Write-Host "PRD FEEDBACK SUMMARY" -ForegroundColor Cyan
 Write-Host $rule -ForegroundColor Cyan
-Write-Host ("PRD Confidence : " + $finalConfidence + "%  |  Traceability (stories:" + $storyPct + "%, acceptance:" + $accPct + "%, NFR:" + $nfrPct + "%, KPIs:" + $kpiPct + "%)") -ForegroundColor Yellow
+if ($confidence -ne $null) {
+  Write-Host ("PRD Confidence : " + $confidence + "%") -ForegroundColor Yellow
+} else {
+  Write-Host "PRD Confidence : N/A" -ForegroundColor Yellow
+}
 Write-Host $sep -ForegroundColor DarkGray
 
 Write-Host "WHAT'S WORKING" -ForegroundColor Green
@@ -179,23 +143,63 @@ Write-Host "POTENTIAL CLASHES / CONTRADICTIONS" -ForegroundColor Magenta
 foreach($c in $clashes){ Write-Host ("- " + (To-Ascii $c)) }
 Write-Host $sep -ForegroundColor DarkGray
 
-Write-Host "SUGGESTED ACCEPTANCE DRAFTS (SEED)" -ForegroundColor Cyan
-foreach($d in $drafts){ Write-Host (To-Ascii $d) }
-Write-Host $sep -ForegroundColor DarkGray
-
 if ($diagnostics) {
   Write-Host "TOP SEMANTIC SUGGESTIONS" -ForegroundColor Cyan
   $shown=0
-  foreach($d in $diagnostics){ if ($d.suggestions -and $d.suggestions.Count -gt 0){ foreach($s in ($d.suggestions | Select-Object -First 2)){ Write-Host ("- " + (To-Ascii $s)) }; $shown+=2; if ($shown -ge 8) { break } } }
+  foreach($d in $diagnostics){
+    if ($d.suggestions -and $d.suggestions.Count -gt 0){
+      foreach($s in ($d.suggestions | Select-Object -First 2)){
+        Write-Host ("- " + (To-Ascii $s))
+      }
+      $shown+=2
+      if ($shown -ge 8) { break }
+    }
+  }
   Write-Host $sep -ForegroundColor DarkGray
 }
 
 Write-Host "COPY/PASTE THIS INTO YOUR GPT:" -ForegroundColor White
-$prompt = @()
-$prompt += "Improve the PRD using the structured feedback above."
-$prompt += ("Target Confidence: " + $finalConfidence + "%. Prioritize the 'WHAT NEEDS IMPROVEMENT' items.")
-$prompt += "Rewrite ambiguous lines, resolve contradictions, add user stories and acceptance criteria (3+ bullets per MUST), tag NFR areas, and link at least one KPI per MUST feature."
-Write-Host (To-Ascii ($prompt -join ' ')) -ForegroundColor White
+Write-Host $sep -ForegroundColor DarkGray
+
+# Build comprehensive single-paragraph feedback
+$gpPrompt = @()
+if ($confidence -ne $null) {
+  $gpPrompt += "PRD Confidence: $confidence%."
+} else {
+  $gpPrompt += "PRD Confidence: Unable to calculate."
+}
+
+# Semantic issues first (highest priority)
+if ($semanticAnalysis) {
+    if ($semanticAnalysis.contradictions -and $semanticAnalysis.contradictions.Count -gt 0) {
+        $gpPrompt += "Contradictions: " + ($semanticAnalysis.contradictions -join '; ') + "."
+    }
+    if ($semanticAnalysis.impossibilities -and $semanticAnalysis.impossibilities.Count -gt 0) {
+        $gpPrompt += "Impossibilities: " + ($semanticAnalysis.impossibilities -join '; ') + "."
+    }
+    if ($semanticAnalysis.implied_dependencies -and $semanticAnalysis.implied_dependencies.Count -gt 0) {
+        $topDeps = $semanticAnalysis.implied_dependencies | Select-Object -First 5
+        $gpPrompt += "Add missing dependencies: " + ($topDeps -join '; ') + "."
+    }
+}
+
+# Deliverable completion
+if ($completion) {
+    $incomplete = @()
+    foreach ($k in $completion.Keys) {
+        if ($completion[$k] -lt 100) {
+            $incomplete += ($k -replace '_', ' ') + " to 100% (currently $($completion[$k])%)"
+        }
+    }
+    if ($incomplete.Count -gt 0) {
+        $gpPrompt += "Complete deliverables: " + ($incomplete -join '; ') + "."
+    }
+}
+
+$gpPrompt += "Target: 95%+ confidence for IA phase."
+
+Write-Host (To-Ascii ($gpPrompt -join ' ')) -ForegroundColor White
+Write-Host $sep -ForegroundColor DarkGray
 
 # --- Deliverable Audit (integrated) ---
 Write-Host ''
@@ -216,23 +220,23 @@ $sectionMap = @(
 function Get-Section([string]$pat){ return (Get-PrdSection -Content $prdText -SectionPattern $pat) }
 foreach ($entry in $sectionMap) {
   $section = Get-Section $entry.pattern
-  $rule = $rules.deliverables.($entry.key)
+  $ruleSet = $rules.deliverables.($entry.key)
   $label = $entry.name
-  if (-not $rule) { continue }
+  if (-not $ruleSet) { continue }
   Write-Host ('-- ' + $label) -ForegroundColor Cyan
   if (-not $section) {
     Write-Host ('  Section not found by pattern: ' + $entry.pattern) -ForegroundColor Yellow
     Write-Host ''
     continue
   }
-  $m = Measure-SemanticSection -SectionContent $section -Rules $rule
+  $m = Measure-SemanticSection -SectionContent $section -Rules $ruleSet
   Write-Host ('  Completion: ' + $m.percentage + '%') -ForegroundColor Green
-  foreach($elem in $rule.required_elements){
+  foreach($elem in $ruleSet.required_elements){
     $status = 'PASS'
     $found = $null
     if ($elem.type -eq 'count') {
       $total = 0
-      foreach($pat in $elem.patterns){ $total += ([regex]::Matches($section, "(?i)"+$pat)).Count }
+      foreach($pat in $elem.patterns){ $total += ([regex]::Matches($section, "(?im)"+$pat)).Count }
       if ($elem.id -eq 'acceptance_criteria') { $total += ([regex]::Matches($section, '(?im)^\s*(Given|When|Then)\b')).Count }
       if ($elem.id -eq 'story_count' -or $elem.id -eq 'story_format') {
         $alt1 = ([regex]::Matches($section, '(?im)^\s*As\s+an?\s+.+?\s+(I\s+(want|can|need)\s+.+?)\s+(so\s+(that|I\s+can)\s+.+)$')).Count
@@ -259,17 +263,6 @@ foreach ($entry in $sectionMap) {
   Write-Host ''
 }
 
-# Feature traceability snapshot
 Write-Host $rule -ForegroundColor Cyan
-Write-Host "FEATURE TRACEABILITY SNAPSHOT (Top 10)" -ForegroundColor Cyan
+Write-Host "END OF FEEDBACK" -ForegroundColor Cyan
 Write-Host $rule -ForegroundColor Cyan
-$max = [Math]::Min(10, $reportData.Features.Count)
-for($i=0;$i -lt $max;$i++){
-  $f = $reportData.Features[$i]
-  $desc = if ($f.PSObject.Properties.Name -contains 'Description' -and $f.Description) { 'Y' } else { 'N' }
-  $stories = if ($f.Stories) { $f.Stories.Count } else { 0 }
-  $acc = if ($f.PSObject.Properties.Name -contains 'AcceptanceTotal') { $f.AcceptanceTotal } else { 0 }
-  $nfr = if ($f.NfrAreas) { $f.NfrAreas.Count } else { 0 }
-  $kpi = if ($f.Kpis) { $f.Kpis.Count } else { 0 }
-  Write-Host (' - ' + $f.Name + ' | Desc:' + $desc + ' | Stories:' + $stories + ' | Acc:' + $acc + ' | NFR:' + $nfr + ' | KPI:' + $kpi)
-}

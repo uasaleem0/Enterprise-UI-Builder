@@ -42,7 +42,11 @@ function Measure-SemanticSection {
         [object]$Rules
     )
 
-    $SectionContent = Normalize-Text $SectionContent
+    # Mild normalization: preserve whitespace; avoid collapsing that breaks patterns
+    $SectionContent = $SectionContent -replace "\r\n?", "`n"
+    $SectionContent = $SectionContent -replace "[\u2018\u2019]", "'"
+    $SectionContent = $SectionContent -replace "[\u201C\u201D]", '"'
+    $SectionContent = $SectionContent -replace "[\u2013\u2014]", "-"
     $score = 0
     $maxScore = 0
     $details = @()
@@ -60,10 +64,10 @@ function Measure-SemanticSection {
 
             switch ($element.id) {
                 'acceptance_criteria' {
+                    $checkbox = ([regex]::Matches($SectionContent, '(?im)^\s*[-*]\s*\[[ xX]\]')).Count
                     $musts = ([regex]::Matches($SectionContent, '(?im)^\s*[-*]\s+(must|should|shall)\b')).Count
                     $gherkin = ([regex]::Matches($SectionContent, '(?im)^\s*(Given|When|Then)\b')).Count
-                    $totalMatches += $musts
-                    $totalMatches += $gherkin
+                    $totalMatches += ($checkbox + $musts + $gherkin)
                 }
                 'story_count' {
                     $stories = ([regex]::Matches($SectionContent, '(?im)^\s*[-*]?\s*As\s+a\s+.+?\s+I\s+want\s+.+?\s+so\s+that\s+.+$')).Count
@@ -384,10 +388,15 @@ function Measure-SitemapCompleteness {
     $rawContent = Get-Content -Path $Path -Raw
     $content = Normalize-Text $rawContent
 
-    # Count routes
-    $routePattern = '(?m)^\s*[-*]\s+(/[^\s]+)'
-    $routes = [regex]::Matches($content, $routePattern)
-    if ($routes.Count -eq 0) { return 0 }
+    # Count routes - support both bullet list and table formats
+    # Bullet format: - /dashboard
+    # Table format: Dashboard	/dashboard	Purpose text
+    $bulletPattern = '(?m)^\s*[-*]\s+(/[^\s]+)'
+    $tablePattern = '(?m)^\s*\S+\s+(/[^\s\t]+)'
+
+    $bulletRoutes = [regex]::Matches($content, $bulletPattern)
+    $tableRoutes = [regex]::Matches($content, $tablePattern)
+    $routes = if ($bulletRoutes.Count -gt 0) { $bulletRoutes } else { $tableRoutes }
 
     $lines = $content -split "`n"
     $score = 0
@@ -409,7 +418,7 @@ function Measure-SitemapCompleteness {
         if ($routeLineIndex -ge 0) {
             $hasPurpose = $false
             for ($i = $routeLineIndex + 1; $i -lt [Math]::Min($routeLineIndex + 4, $lines.Count); $i++) {
-                if ($lines[$i] -match '(?i)(purpose|description):\s*\S+') {
+                if ($lines[$i] -match '(?i)(purpose|description):\s*\S+' -or ($lines[$routeLineIndex] -match '\t.*\t.+')) {
                     $hasPurpose = $true
                     break
                 }
@@ -427,10 +436,10 @@ function Measure-FlowsCompleteness {
     $rawContent = Get-Content -Path $Path -Raw
     $content = Normalize-Text $rawContent
 
-    # Count flows (headers or labeled flows)
-    $flowPattern = '(?im)^(?:###?\s+|(?:\d+\.\s*)?(?:Primary|Secondary|Tertiary)?\s*(?:Flow|Journey|Process):\s*)(.+?)$'
+    # Count flows - support markdown headers, labeled flows, and plain text headers ending with "Flow"
+    # Formats: ### Workout Flow, Flow:, or plain "Workout Tracking Flow"
+    $flowPattern = '(?im)^(.+?\s+(?:Flow|Journey|Process))\s*$'
     $flows = [regex]::Matches($content, $flowPattern)
-    if ($flows.Count -eq 0) { return 0 }
 
     $score = 0
     $maxScore = $flows.Count * 4  # Entry, Steps, Success, Errors
@@ -440,12 +449,13 @@ function Measure-FlowsCompleteness {
 
         # Extract flow block (until next flow or end)
         $startIdx = $match.Index
-        $nextFlow = [regex]::Matches($content.Substring($startIdx + 1), $flowPattern) | Select-Object -First 1
-        $endIdx = if ($nextFlow) { $startIdx + $nextFlow.Index + 1 } else { $content.Length }
+        $matchEnd = $match.Index + $match.Length
+        $nextFlow = [regex]::Matches($content.Substring($matchEnd), $flowPattern) | Select-Object -First 1
+        $endIdx = if ($nextFlow) { $matchEnd + $nextFlow.Index } else { $content.Length }
         $flowBlock = $content.Substring($startIdx, $endIdx - $startIdx)
 
         # Check for required fields
-        if ($flowBlock -match '(?i)(entry|trigger|start):\s*\S+') { $score++ }
+        if ($flowBlock -match '(?i)(entry|trigger|start|goal):\s*\S+') { $score++ }
         if ($flowBlock -match '(?i)(steps?|flow):\s*\S+') { $score++ }
         if ($flowBlock -match '(?i)(success|outcome|result|goal):\s*\S+') { $score++ }
         if ($flowBlock -match '(?i)(error|failure|exception)s?:\s*\S+') { $score++ }
@@ -461,7 +471,7 @@ function Measure-EntitiesCompleteness {
     $content = Normalize-Text $rawContent
 
     # Count entities
-    $entityPattern = '(?im)^(?:[-*]\s+|###?\s+)([A-Z][A-Za-z]+)(?:\s+Entity)?'
+    $entityPattern = '(?im)^(?:[-*]\s+|###?\s+|Entity:\s+)([A-Z][A-Za-z]+)(?:\s+Entity)?'
     $entities = [regex]::Matches($content, $entityPattern)
     if ($entities.Count -eq 0) { return 0 }
 
@@ -497,9 +507,8 @@ function Measure-NavigationCompleteness {
     if ($content -match '(?i)(primary|main|top)\s+(nav|navigation)') { $score++ }
 
     # Check for secondary navigation
-    if ($content -match '(?i)(secondary|footer|bottom|side)\s+(nav|navigation)') { $score++ }
+    if ($content -match '(?i)(secondary|footer|bottom|side)\s*(nav|navigation|:)') { $score++ }
 
     if ($maxScore -eq 0) { return 0 }
     return [Math]::Round(($score / $maxScore) * 100, 0)
 }
-

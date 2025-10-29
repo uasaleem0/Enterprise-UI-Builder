@@ -145,9 +145,9 @@ function Get-RouteContradictions {
 
     $contradictions = @()
 
-    # Extract all routes
-    $routePattern = '(?m)^\s*[-*]\s+(/[^\s]+)'
-    $routes = [regex]::Matches($SitemapText, $routePattern) | ForEach-Object { $_.Groups[1].Value }
+# PLACEHOLDER_SITEMAP
+# PLACEHOLDER_SITEMAP
+# PLACEHOLDER_SITEMAP
 
     # Check for duplicates
     $routeCounts = @{}
@@ -166,7 +166,7 @@ function Get-RouteContradictions {
     }
 
     # Check for routes in flows but not sitemap
-    $flowRoutes = [regex]::Matches($FlowsText, '/[A-Za-z0-9][A-Za-z0-9/_:\-]*') | ForEach-Object { $_.Value } | Select-Object -Unique
+# PLACEHOLDER_FLOWS
 
     foreach ($flowRoute in $flowRoutes) {
         if ($routes -notcontains $flowRoute) {

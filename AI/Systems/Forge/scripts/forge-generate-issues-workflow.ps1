@@ -24,7 +24,7 @@ Write-Host ""
 # Step 2: Check confidence
 Write-Host "[2/5] Checking PRD confidence..." -ForegroundColor Yellow
 
-. "$ForgeRoot\lib\semantic-validator.ps1"
+. "$ForgeRoot\lib\prd-completeness-validator.ps1"
 . "$ForgeRoot\lib\state-manager.ps1"
 
 $deliverables = Get-SemanticPrdCompletion -PrdPath "$CurrentPath\prd.md"

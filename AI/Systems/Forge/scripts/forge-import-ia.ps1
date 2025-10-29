@@ -200,12 +200,6 @@ if ($totalIssues -gt 0) {
 }
 
 Write-Host ""
-Write-Host "Next Steps:" -ForegroundColor Cyan
-Write-Host "  forge show-ia          # View detailed IA analysis" -ForegroundColor White
-if ($iaQuality -lt 85) {
-    Write-Host "  forge evolve-spec      # Fix semantic issues" -ForegroundColor White
-}
-Write-Host ""
 
 # Show what was created
 $state = Get-ProjectState -ProjectPath $CurrentPath

@@ -24,7 +24,7 @@ function Write-ForgeInfo { param($Message) Write-Host "[INFO] $Message" -Foregro
 $PrdFile = $null
 foreach ($a in $InputArgs) {
     if (-not ($a.StartsWith('--'))) {
-        $PrdFile = $a
+        $PrdFile = (Resolve-Path $a).Path
         break
     }
 }
@@ -35,7 +35,8 @@ $CurrentPath = Get-Location
 # A valid project directory should either:
 # 1. Not have a prd.md yet (new project), OR
 # 2. Have a prd.md that we'll overwrite with confirmation
-$existingPrd = Test-Path (Join-Path $CurrentPath 'prd.md')
+$prdPath = Join-Path $CurrentPath 'prd.md'
+$existingPrd = Test-Path -LiteralPath $prdPath
 $stateFile = Test-Path (Join-Path $CurrentPath '.forge-state.json')
 
 if (-not $PrdFile) {
@@ -49,11 +50,30 @@ if (-not $PrdFile) {
 }
 
 if ($existingPrd) {
-    Write-ForgeWarning "prd.md already exists in this directory"
-    $confirm = Read-Host "Overwrite existing PRD? (y/n)"
-    if ($confirm -ne 'y') {
-        Write-ForgeInfo "Import cancelled"
-        exit 0
+    # Treat an empty or whitespace-only placeholder as not existing for UX
+    try {
+        $len = (Get-Item -LiteralPath $prdPath -ErrorAction Stop).Length
+        $isEmpty = ($null -eq $len) -or ($len -eq 0)
+    } catch { $isEmpty = $false }
+    if (-not $isEmpty) {
+        try {
+            $content = Get-Content -LiteralPath $prdPath -Raw -ErrorAction SilentlyContinue
+            $tlen = if ($null -eq $content) { 0 } else { ($content.Trim()).Length }
+            if ($tlen -eq 0) { $isEmpty = $true }
+        } catch { }
+    }
+
+    if ($env:FORGE_DEBUG) {
+        Write-Host "[DEBUG] existingPrd=$existingPrd len=$len tlen=$tlen isEmpty=$isEmpty path=$prdPath" -ForegroundColor DarkGray
+    }
+
+    if (-not $isEmpty) {
+        Write-ForgeWarning "prd.md already exists in this directory"
+        $confirm = Read-Host "Overwrite existing PRD? (y/n)"
+        if ($confirm -ne 'y') {
+            Write-ForgeInfo "Import cancelled"
+            exit 0
+        }
     }
 }
 
@@ -71,7 +91,7 @@ Write-Host ""
 # Step 1: Copy PRD to project
 Write-ForgeInfo "Importing PRD..."
 try {
-    $prdDestination = Join-Path $CurrentPath 'prd.md'
+    $prdDestination = $prdPath
     Copy-Item -Path $PrdFile -Destination $prdDestination -Force
     Write-ForgeSuccess "PRD copied to: prd.md"
 } catch {
@@ -79,10 +99,15 @@ try {
     exit 1
 }
 
-# Step 2: Calculate initial confidence
+# Step 2: Validate PRD content and calculate initial confidence
 Write-Host ""
 Write-ForgeInfo "Analyzing PRD structure..."
 try {
+    # Guardrail: PRD must not be empty/whitespace
+    $rawPrd = Get-Content -LiteralPath $prdDestination -Raw -Encoding UTF8
+    if (-not $rawPrd -or ($rawPrd.Trim()).Length -eq 0) {
+        throw "PRD content is empty after import"
+    }
     $completion = Get-SemanticPrdCompletion -PrdPath $prdDestination
     $confidence = Update-ProjectConfidence -ProjectPath $CurrentPath -Deliverables $completion
 
@@ -107,40 +132,9 @@ try {
 
     Set-ProjectState -ProjectPath $CurrentPath -State $state
 
-    # Optional: Extract PRD model via AI if configured, then build project model
-    try {
-        $provider = (Get-EnvOrNull 'FORGE_AI_PROVIDER')
-        if ($provider) {
-            $outJson = Invoke-ForgeAIExtract -PrdPath $prdDestination -OutJsonPath (Join-Path $CurrentPath 'ai_parsed_prd.json')
-            if (Test-Path $outJson) {
-                try { $obj = Get-Content -Path $outJson -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $obj = $null }
-                if ($obj -and ($obj.PSObject.Properties.Name -contains 'features')) {
-                    $pm = @()
-                    foreach($f in $obj.features){
-                        # Preserve all rich data from AI extraction
-                        $acceptanceArray = if ($f.acceptance) { @($f.acceptance) } else { @() }
-                        $pm += [pscustomobject]@{
-                            name = $f.name
-                            scope = $f.scope
-                            description = $f.description
-                            stories = if ($f.stories) { @($f.stories) } else { @() }
-                            nfr = if ($f.nfr) { @($f.nfr) } else { @() }
-                            kpis = if ($f.kpis) { @($f.kpis) } else { @() }
-                            acceptance = $acceptanceArray
-                            acceptance_done = $acceptanceArray.Count  # AI extracts full list, so all are "done"
-                            acceptance_total = $acceptanceArray.Count
-                            derived = if ($f.PSObject.Properties['derived']) { $f.derived } else { $false }
-                        }
-                    }
-                    $state2 = Get-ProjectState -ProjectPath $CurrentPath
-                    $state2.prd_model = @{ features = @($pm) }
-                    Set-ProjectState -ProjectPath $CurrentPath -State $state2
-                }
-            }
-        }
-    } catch {}
-
-    Build-ProjectSemanticModel -ProjectPath $CurrentPath
+    # Build semantic model (heuristic + optional AI enrichment)
+    Write-ForgeInfo "Building semantic model..."
+    Build-ProjectSemanticModel -ProjectPath $CurrentPath | Out-Null
 
     Write-ForgeSuccess "Initial analysis complete!"
     Write-Host ""

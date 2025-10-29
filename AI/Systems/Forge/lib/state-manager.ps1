@@ -33,8 +33,21 @@ function Get-ProjectState {
     $statePath = "$ProjectPath\.forge-state.json"
 
     if (Test-Path $statePath) {
-        $json = Get-Content $statePath | ConvertFrom-Json
-        return ConvertTo-Hashtable $json
+        # Robust read with raw mode and small retry to avoid partial reads during concurrent writes
+        $attempts = 0
+        do {
+            try {
+                $raw = Get-Content -Path $statePath -Raw -ErrorAction Stop
+                if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                    $json = $raw | ConvertFrom-Json -ErrorAction Stop
+                    return ConvertTo-Hashtable $json
+                }
+            } catch {
+                Start-Sleep -Milliseconds 50
+            }
+            $attempts++
+        } while ($attempts -lt 5)
+        throw "Failed to read project state from $statePath"
     }
 
     # Return default state
@@ -44,7 +57,9 @@ function Get-ProjectState {
         confidence = 0
         industry = "unknown"
         validated = $false
-        blockers = @()
+        ia_model = $null
+        prd_model = $null
+        project_model = $null
         deliverables = @{
             problem_statement = 0
             user_personas = 0
@@ -68,13 +83,51 @@ function Set-ProjectState {
 
     $statePath = "$ProjectPath\.forge-state.json"
 
-    # Ensure arrays are preserved in JSON (force single-item arrays to remain arrays)
     $jsonSettings = @{
         Depth = 10
         Compress = $false
     }
 
-    $State | ConvertTo-Json @jsonSettings | Set-Content $statePath
+    # Sanitize: ensure all dictionary keys are strings to satisfy JSON serializer
+    function Convert-KeysToString {
+        param($Obj)
+        if ($null -eq $Obj) { return $null }
+        # CRITICAL: Check for string FIRST before IEnumerable check
+        # Strings are IEnumerable, and -isnot check may not work reliably in all cases
+        if ($Obj -is [string]) { return $Obj }
+        if ($Obj -is [hashtable]) {
+            $out = @{}
+            foreach ($k in $Obj.Keys) {
+                $ks = [string]$k
+                $out[$ks] = Convert-KeysToString $Obj[$k]
+            }
+            return $out
+        } elseif ($Obj -is [System.Collections.IDictionary]) {
+            $out = @{}
+            foreach ($k in $Obj.Keys) {
+                $ks = [string]$k
+                $out[$ks] = Convert-KeysToString $Obj[$k]
+            }
+            return $out
+        } elseif ($Obj -is [System.Collections.IEnumerable]) {
+            $arr = @()
+            foreach ($it in $Obj) { $arr += ,(Convert-KeysToString $it) }
+            return $arr
+        } elseif ($Obj -is [PSCustomObject]) {
+            $hash = @{}
+            foreach ($p in $Obj.PSObject.Properties) { $hash[$p.Name] = Convert-KeysToString $p.Value }
+            return $hash
+        }
+        return $Obj
+    }
+
+    $sanitized = Convert-KeysToString $State
+
+    # Safe write: write to temp file then atomically replace
+    $jsonText = $sanitized | ConvertTo-Json @jsonSettings
+    $tempPath = "$statePath.tmp"
+    $jsonText | Set-Content -Path $tempPath -Encoding UTF8
+    Move-Item -Path $tempPath -Destination $statePath -Force
 }
 
 function Update-ProjectConfidence {
@@ -83,7 +136,6 @@ function Update-ProjectConfidence {
         [hashtable]$Deliverables
     )
 
-    # Load confidence weights
     $weightsPath = "$PSScriptRoot\..\core\validation\confidence-weights.json"
     $weights = Get-Content $weightsPath | ConvertFrom-Json
 
@@ -108,7 +160,6 @@ function Test-ValidationBlocks {
 
     $foundBlockers = @()
 
-    # Check tech stack
     if ($State.deliverables.tech_stack -lt 100) {
         $foundBlockers += @{
             id = "missing_tech_stack"
@@ -117,7 +168,6 @@ function Test-ValidationBlocks {
         }
     }
 
-    # Check overall confidence
     if ($State.confidence -lt $blocks.minimum_confidence) {
         $foundBlockers += @{
             id = "low_confidence"
@@ -126,7 +176,6 @@ function Test-ValidationBlocks {
         }
     }
 
-    # Check feature clarity
     if ($State.deliverables.feature_list -lt 75) {
         $foundBlockers += @{
             id = "vague_features"
@@ -150,7 +199,6 @@ function Get-NextSteps {
     $gap = $TargetConfidence - $State.confidence
     $steps = @()
 
-    # Find incomplete deliverables
     foreach ($key in $State.deliverables.Keys) {
         $completion = $State.deliverables.$key
         if ($completion -lt 100) {
@@ -171,6 +219,5 @@ function Get-NextSteps {
         }
     }
 
-    # Sort by impact (highest first)
     return $steps | Sort-Object -Property impact -Descending
 }

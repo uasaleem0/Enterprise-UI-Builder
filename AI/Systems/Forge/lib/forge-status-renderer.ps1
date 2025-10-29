@@ -515,7 +515,7 @@ function Show-StageIA {
     Write-Host " Import IA report ('forge import-ia')" -NoNewline
     Write-Host (" " * 19) -NoNewline
     Write-Host "|" -ForegroundColor Gray
-    Write-Host "|  [  ] Review sitemap (New-ForgeSitemapReport)" -NoNewline
+    Write-Host "|  [  ] Review sitemap (Format-SitemapReport)" -NoNewline
     Write-Host (" " * 15) -NoNewline
     Write-Host "|" -ForegroundColor Gray
     Write-Host "|  [  ] Review user flows" -NoNewline
@@ -726,3 +726,78 @@ function Show-QuickActions {
     Write-Host ""
 }
 
+
+
+function Show-ConfidenceTracker {
+    param(
+        [string]$ProjectName,
+        [int]$Confidence,
+        [hashtable]$Deliverables
+    )
+    
+    Write-Host ""
+    Write-Host "PROJECT: $ProjectName" -ForegroundColor Cyan
+    Write-Host ""
+    
+    # Calculate progress bar
+    $filled = [math]::Floor($Confidence / 10)
+    $empty = 10 - $filled
+    $progressBar = ([string][char]0x2588) * $filled + ([string][char]0x2591) * $empty
+    
+    $color = if ($Confidence -ge 80) { "Green" } elseif ($Confidence -ge 50) { "Yellow" } else { "Red" }
+    Write-Host "Confidence: $Confidence% [$progressBar]" -ForegroundColor $color
+    Write-Host ""
+    
+    # Show deliverables summary
+    if ($Deliverables) {
+        $completed = ($Deliverables.Values | Where-Object { $_ -ge 100 }).Count
+        $total = $Deliverables.Count
+        Write-Host "Deliverables: $completed/$total completed" -ForegroundColor Cyan
+        
+        foreach ($key in $Deliverables.Keys | Sort-Object) {
+            $status = if ($Deliverables[$key] -ge 100) { "[X]" } else { "[ ]" }
+            $color = if ($Deliverables[$key] -ge 100) { "Green" } else { "Gray" }
+            Write-Host "  $status $key" -ForegroundColor $color
+        }
+    }
+    Write-Host ""
+}
+
+function Show-NextSteps {
+    param(
+        [array]$Steps
+    )
+    
+    Write-Host "NEXT STEPS" -ForegroundColor Cyan
+    Write-Host ""
+    
+    if ($Steps -and $Steps.Count -gt 0) {
+        # Check if steps are hashtables (from state-manager Get-NextSteps) or strings
+        $firstStep = $Steps[0]
+        if ($firstStep -is [hashtable]) {
+            # Format deliverable-based steps from state-manager
+            Write-Host "  Complete these PRD sections to increase confidence:" -ForegroundColor Yellow
+            Write-Host ""
+            $displayCount = [Math]::Min($Steps.Count, 3)
+            for ($i = 0; $i -lt $displayCount; $i++) {
+                $step = $Steps[$i]
+                $deliverableName = ($step.deliverable -replace '_', ' ')
+                $deliverableName = (Get-Culture).TextInfo.ToTitleCase($deliverableName)
+                $impact = $step.impact
+                Write-Host "  $($i + 1). $deliverableName (Current: $($step.current)%, Impact: +$impact%)" -ForegroundColor Yellow
+            }
+        } else {
+            # Format string steps
+            for ($i = 0; $i -lt $Steps.Count; $i++) {
+                $step = $Steps[$i]
+                Write-Host "  $($i + 1). $step" -ForegroundColor Yellow
+            }
+        }
+    } else {
+        # Default next steps
+        Write-Host "  1. Review PRD completeness" -ForegroundColor Yellow
+        Write-Host "  2. Import or define IA (Information Architecture)" -ForegroundColor Yellow
+        Write-Host "  3. Generate GitHub issues from PRD" -ForegroundColor Yellow
+    }
+    Write-Host ""
+}

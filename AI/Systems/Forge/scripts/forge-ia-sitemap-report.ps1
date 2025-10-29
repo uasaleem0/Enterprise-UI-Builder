@@ -3,8 +3,9 @@ param([string[]]$Args)
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ForgeRoot = Split-Path -Parent $ScriptRoot
 
-. "$ForgeRoot\lib\ia-report-parser.ps1"
-. "$ForgeRoot\scripts\New-ForgeSitemapReport.ps1"
+. "$ForgeRoot\lib\state-manager.ps1"
+. "$ForgeRoot\lib\ia-heuristic-parser.ps1"
+. "$ForgeRoot\scripts\Format-SitemapReport.ps1"
 
 $CurrentPath = Get-Location
 if (-not (Test-Path "$CurrentPath\prd.md")) {
@@ -23,14 +24,13 @@ foreach ($a in $Args) {
 $reportData = Parse-IAForSitemapReport -ProjectPath $CurrentPath
 $outPath = Join-Path $CurrentPath 'sitemap_report.md'
 if ($noHr) {
-    New-ForgeSitemapReport -ReportData $reportData -OutputPath $outPath -Plain -Width $width -NoHr
+    Format-SitemapReport -ReportData $reportData -OutputPath $outPath -Plain -Width $width -NoHr
 } else {
-    New-ForgeSitemapReport -ReportData $reportData -OutputPath $outPath -Plain -Width $width
+    Format-SitemapReport -ReportData $reportData -OutputPath $outPath -Plain -Width $width
 }
 
-function To-Ascii([string]$s){ if(-not $s){ return '' }; $s = $s -replace "[\u2018\u2019]","'" -replace "[\u201C\u201D]", '"' -replace "[\u2013\u2014\u2212]", '-' -replace "\u2026", '...' ; $chars=$s.ToCharArray(); for($i=0;$i -lt $chars.Length;$i++){ if([int]$chars[$i] -gt 127){ $chars[$i] = [char]'?' } }; return -join $chars }
+# Display report (keep UTF-8 encoding intact for tree characters)
 $content = Get-Content -Path $outPath -Raw -Encoding UTF8
-$content = To-Ascii $content
 
 Write-Host ""
 Write-Host "[FORGE_IA_SITEMAP_REPORT_START]" -ForegroundColor Cyan

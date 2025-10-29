@@ -284,21 +284,32 @@ function Get-VagueFeatures {
         [object]$AiModel
     )
 
+    # Helper to check property existence (works for both hashtables and PSCustomObjects)
+    function Has-Property($obj, $propName) {
+        if ($null -eq $obj) { return $false }
+        if ($obj -is [hashtable]) {
+            return $obj.ContainsKey($propName)
+        } elseif ($null -ne $obj.PSObject) {
+            return $obj.PSObject.Properties.Name -contains $propName
+        }
+        return $false
+    }
+
     $vagueFeatures = @()
 
-    if (-not $AiModel -or -not ($AiModel.PSObject.Properties.Name -contains 'features') -or -not $AiModel.features) {
+    if (-not $AiModel -or -not (Has-Property $AiModel 'features') -or -not $AiModel.features) {
         return $vagueFeatures
     }
 
     foreach ($feature in $AiModel.features) {
-        $featureScope = if ($feature.PSObject.Properties.Name -contains 'scope') { $feature.scope } else { $null }
+        $featureScope = if (Has-Property $feature 'scope') { $feature.scope } else { $null }
         if ($featureScope -ne 'MUST') { continue }
 
         $issues = @()
 
         # Check acceptance criteria
         $accCount = 0
-        if ($feature.PSObject.Properties.Name -contains 'acceptance' -and $feature.acceptance) {
+        if ((Has-Property $feature 'acceptance') -and $feature.acceptance) {
             $accCount = @($feature.acceptance).Count
         }
         if ($accCount -lt 3) {
@@ -306,7 +317,7 @@ function Get-VagueFeatures {
         }
 
         # Check for vague acceptance language
-        if ($feature.PSObject.Properties.Name -contains 'acceptance' -and $feature.acceptance) {
+        if ((Has-Property $feature 'acceptance') -and $feature.acceptance) {
             $vaguePatterns = '(?i)\b(tbd|to be|maybe|possibly|likely|should work|user-friendly|fast|easy|good|better|optimiz)\b'
             foreach ($acc in $feature.acceptance) {
                 if ($acc -match $vaguePatterns) {
@@ -317,31 +328,31 @@ function Get-VagueFeatures {
         }
 
         # Check description
-        $hasDesc = $feature.PSObject.Properties.Name -contains 'description' -and $feature.description
+        $hasDesc = (Has-Property $feature 'description') -and $feature.description
         if (-not $hasDesc -or $feature.description.Trim().Length -lt 20) {
             $issues += "Missing or minimal description"
         }
 
         # Check user stories
-        $hasStories = $feature.PSObject.Properties.Name -contains 'stories' -and $feature.stories
+        $hasStories = (Has-Property $feature 'stories') -and $feature.stories
         if (-not $hasStories -or @($feature.stories).Count -eq 0) {
             $issues += "No user stories linked"
         }
 
         # Check NFR areas
-        $hasNfr = $feature.PSObject.Properties.Name -contains 'nfr' -and $feature.nfr
+        $hasNfr = (Has-Property $feature 'nfr') -and $feature.nfr
         if (-not $hasNfr -or @($feature.nfr).Count -eq 0) {
             $issues += "No NFR areas tagged"
         }
 
         # Check KPIs
-        $hasKpis = $feature.PSObject.Properties.Name -contains 'kpis' -and $feature.kpis
+        $hasKpis = (Has-Property $feature 'kpis') -and $feature.kpis
         if (-not $hasKpis -or @($feature.kpis).Count -eq 0) {
             $issues += "No KPIs linked"
         }
 
         if ($issues.Count -gt 0) {
-            $featureName = if ($feature.PSObject.Properties.Name -contains 'name') { $feature.name } else { 'Unknown Feature' }
+            $featureName = if (Has-Property $feature 'name') { $feature.name } else { 'Unknown Feature' }
             $vagueFeatures += [PSCustomObject]@{
                 Name = $featureName
                 Issues = $issues

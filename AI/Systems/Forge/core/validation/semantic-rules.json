@@ -78,7 +78,7 @@
         {
           "id": "story_count",
           "type": "count",
-          "patterns": ["^\\s*-", "^\\d+\\."],
+          "patterns": ["(?i)^\\s*[-*]\\s+As\\s+a\\s+"],
           "minimum": 5,
           "points": 40,
           "description": "At least 5 user stories"
@@ -92,10 +92,14 @@
         {
           "id": "feature_count",
           "type": "count",
-          "patterns": ["####"],
+          "patterns": [
+            "(?m)^####\\s+",
+            "(?m)^###\\s+",
+            "(?m)^-\\s+\\*\\*.+?\\*\\*"
+          ],
           "minimum": 3,
           "points": 30,
-          "description": "At least 3 defined features"
+          "description": "At least 3 defined features (accepts #### headings, ### headings, or bold bullet features)"
         },
         {
           "id": "acceptance_criteria",
@@ -162,7 +166,7 @@
         {
           "id": "kpi_count",
           "type": "count",
-          "patterns": ["^\\s*\\d+\\.", "^\\s*-"],
+          "patterns": ["^\\s*\\d+\\.", "^\\s*-", "^\\s*\\|\\s*\\*\\*[A-Z]"],
           "minimum": 3,
           "points": 30,
           "description": "At least 3 KPIs defined"
@@ -170,7 +174,18 @@
         {
           "id": "measurable",
           "type": "count",
-          "patterns": ["\\d+%", "\\d+ users?", "\\d+ hours?", "\\$\\d+", "\\d+ days?", "\\d+ weeks?", "nps", "score"],
+          "patterns": [
+            "\\d+%",
+            "percent",
+            "percentage",
+            "\\d+ users?",
+            "\\d+ hours?",
+            "\\$\\d+",
+            "\\d+ days?",
+            "\\d+ weeks?",
+            "nps",
+            "score"
+          ],
           "minimum": 3,
           "points": 40,
           "description": "Metrics include numbers/targets"

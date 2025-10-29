@@ -188,22 +188,77 @@ function Parse-IAForSitemapReport { param([string]$ProjectPath)
             $modals = @($state.ia_model.modals)
             $oos = @($state.ia_model.out_of_scope)
             $features = @()
-            if ($state.ContainsKey('prd_model') -and $state.prd_model -and ($state.prd_model.PSObject.Properties.Name -contains 'features')){
+            if ($state.ContainsKey('prd_model') -and $state.prd_model -and $state.prd_model.ContainsKey('features')){
                 foreach($f in $state.prd_model.features){
                     $impl = ''
-                    if ($state.project_model.feature_to_routes.ContainsKey($f.name) -and $state.project_model.feature_to_routes[$f.name].Count -gt 0){ $impl = $state.project_model.feature_to_routes[$f.name][0] }
+                    if ($state.project_model.feature_to_routes.ContainsKey($f.name) -and $state.project_model.feature_to_routes[$f.name].Count -gt 0){ $impl = ($state.project_model.feature_to_routes[$f.name] -join ', ') }
                     $features += [pscustomobject]@{ Name=$f.name; Description=$f.description; Implementation=$impl }
+                }
+            }
+            # Build reverse mapping from feature_to_routes if route_to_features is incomplete
+            if (-not $state.project_model.route_to_features -or $state.project_model.route_to_features.Count -eq 0) {
+                $state.project_model.route_to_features = @{}
+            }
+            foreach ($feature in $state.project_model.feature_to_routes.GetEnumerator()) {
+                foreach ($route in $feature.Value) {
+                    if (-not $state.project_model.route_to_features.ContainsKey($route)) {
+                        $state.project_model.route_to_features[$route] = @()
+                    }
+                    if ($state.project_model.route_to_features[$route] -notcontains $feature.Key) {
+                        $state.project_model.route_to_features[$route] += $feature.Key
+                    }
                 }
             }
             $screens = @()
             foreach($r in $routes){
                 $core = ''
-                if ($state.project_model.route_to_features.ContainsKey($r) -and $state.project_model.route_to_features[$r].Count -gt 0){ $core = $state.project_model.route_to_features[$r][0] }
-                $kc = @(); if ($state.ia_model.components_by_route.ContainsKey($r)){ $kc = @($state.ia_model.components_by_route.$r) }
-                $dd = @(); if ($state.ia_model.entities_by_route.ContainsKey($r)){ $dd = @($state.ia_model.entities_by_route.$r) }
+                if ($state.project_model.route_to_features.ContainsKey($r)){
+                    $coreVal = $state.project_model.route_to_features[$r]
+                    if ($coreVal -is [string]){ $core = $coreVal }
+                    elseif ($coreVal -and $coreVal.Count -gt 0){ $core = $coreVal[0] }
+                }
+                # Filter out empty hashtables and ensure we get real component/entity arrays
+                $kc = @()
+                if ($state.ia_model.components_by_route.ContainsKey($r)){
+                    $kcVal = $state.ia_model.components_by_route.$r
+                    if ($kcVal -and $kcVal -isnot [hashtable] -and $kcVal.Count -gt 0){ $kc = @($kcVal) }
+                }
+                $dd = @()
+                if ($state.ia_model.entities_by_route.ContainsKey($r)){
+                    $ddVal = $state.ia_model.entities_by_route.$r
+                    if ($ddVal -and $ddVal -isnot [hashtable] -and $ddVal.Count -gt 0){ $dd = @($ddVal) }
+                }
                 $purpose = 'TBD'
                 if ($state.ia_model.purpose_map -and $state.ia_model.purpose_map.ContainsKey($r)) { $purpose = $state.ia_model.purpose_map[$r] }
-                $screens += [pscustomobject]@{ Route=$r; Purpose=$purpose; CoreFeature=$core; KeyComponents=@($kc); DataDependencies=@($dd); Connectivity=@{ EntryPoints='N/A'; ExitPoints='N/A' } }
+
+                # Extract connectivity from flows
+                $entryPoints = @()
+                $exitPoints = @()
+                if ($state.ia_model.flows) {
+                    foreach ($flow in $state.ia_model.flows) {
+                        if ($flow.steps) {
+                            $stepArray = @()
+                            if ($flow.steps -is [string]) {
+                                $stepArray = @($flow.steps)
+                            } elseif ($flow.steps -is [array]) {
+                                $stepArray = $flow.steps
+                            }
+
+                            if ($stepArray.Count -gt 0) {
+                                if ($stepArray[0] -eq $r) {
+                                    $entryPoints += $flow.name
+                                }
+                                if ($stepArray[-1] -eq $r) {
+                                    $exitPoints += $flow.name
+                                }
+                            }
+                        }
+                    }
+                }
+                $entryText = if ($entryPoints.Count -gt 0) { $entryPoints -join ', ' } else { 'N/A' }
+                $exitText = if ($exitPoints.Count -gt 0) { $exitPoints -join ', ' } else { 'N/A' }
+
+                $screens += [pscustomobject]@{ Route=$r; Purpose=$purpose; CoreFeature=$core; KeyComponents=@($kc); DataDependencies=@($dd); Connectivity=@{ EntryPoints=$entryText; ExitPoints=$exitText } }
             }
             return [pscustomobject]@{ ProjectName=$projectName; Sitemap=@{ Routes=$routes; Modals=@($modals); OutOfScope=@($oos) }; Features=@{ InScope=@($features); OutOfScope=@() }; ScreenAnalysis=@($screens) }
         }

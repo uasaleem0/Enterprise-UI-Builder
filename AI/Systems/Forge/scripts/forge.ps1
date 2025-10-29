@@ -1,4 +1,4 @@
-ï»¿# Forge System - PowerShell Wrapper
+# Forge System - PowerShell Wrapper
 # (removed stray lines)
 # Forge System - PowerShell Wrapper
 # Version: 1.0
@@ -7,18 +7,22 @@
 param(
     [Parameter(Position=0, Mandatory=$true)]
     [ValidateSet(
-        'start', 'import', 'status', 'show', 'help',
+        'start', 'import-prd', 'import-ia', 'status', 'show', 'show-prd', 'show-ia', 'help',
         'setup-repo', 'generate-issues', 'issue', 'review-pr',
-        'test', 'deploy', 'fix', 'export', 'version',
+        'test', 'deploy', 'fix', 'export', 'export-prd', 'version',
         'start-workflow', 'status-workflow', 'generate-issues-workflow',
         'note', 'session-close', 'mode', 'dev-test', 'dev-backup', 'dev-edit',
-        'dev-note', 'dev-status', 'ia-sitemap-report', 'ia-userflows-report', 'prd-report', 'prd-feedback', 'prd-audit'
+        'dev-note', 'dev-status', 'ia-sitemap-report', 'ia-userflows-report', 'ia-erd-report', 'prd-report', 'prd-feedback', 'evolve-spec',
+        'delete-project', 'remove-project'
     )]
     [string]$Command,
 
     [Parameter(Position=1, ValueFromRemainingArguments=$true)]
     [string[]]$Arguments
 )
+
+# Normalize arguments: remove empty/null entries so downstream defaults apply
+$Arguments = @($Arguments | Where-Object { $_ -ne '' -and $_ -ne $null })
 
 # Forge system paths
 $ForgeRoot = "C:\Users\User\AI\Systems\Forge"
@@ -31,16 +35,18 @@ $FoundationPath = "$ForgeRoot\foundation"
 # Load all modules once at startup
 . "$LibPath\mode-manager.ps1"
 . "$LibPath\state-manager.ps1"
-. "$LibPath\semantic-validator.ps1"
-. "$LibPath\render-status.ps1"
+. "$LibPath\prd-completeness-validator.ps1"
+. "$LibPath\forge-status-renderer.ps1"
 . "$LibPath\session-tracker.ps1"
 . "$LibPath\session-formatter.ps1"
 . "$LibPath\issue-generator.ps1"
 . "$ForgeRoot\scripts\New-ForgePRDReport.ps1"
-. "$LibPath\ia-parser.ps1"
-. "$ForgeRoot\lib\ia-report-parser.ps1"
-. "$ForgeRoot\scripts\New-ForgeSitemapReport.ps1"
-. "$ForgeRoot\scripts\New-ForgeUserFlowsReport.ps1"
+. "$LibPath\ia-importer.ps1"
+. "$ForgeRoot\lib\ia-heuristic-parser.ps1"
+. "$ForgeRoot\scripts\Format-SitemapReport.ps1"
+. "$ForgeRoot\scripts\Format-UserFlowsReport.ps1"
+. "$LibPath\readiness.ps1"
+. "$LibPath\project-manager.ps1"
 
 # Color output helpers
 function Write-ForgeSuccess { param($Message) Write-Host "[OK] $Message" -ForegroundColor Green }
@@ -105,7 +111,7 @@ function Invoke-ForgeStart {
 
     Write-ForgeInfo "Creating project directory: $ProjectPath"
     New-Item -ItemType Directory -Path $ProjectPath -Force | Out-Null
-    New-Item -ItemType File -Path "$ProjectPath\prd.md" -Force | Out-Null
+    # Do not create prd.md placeholder; require explicit import or authoring
 
     Write-ForgeSuccess "Project created at: $ProjectPath"
     Write-Host ""
@@ -114,50 +120,10 @@ function Invoke-ForgeStart {
     Write-Host "  cd $ProjectPath" -ForegroundColor Yellow
     Write-Host ""
     Write-ForgeInfo "AI: Reference C:\Users\User\AI\Systems\Forge\core\workflows\from-scratch.md"
-    Write-ForgeInfo "Follow the structured discovery process to build the PRD to 95% confidence"
+    Write-ForgeInfo "Next: create PRD (forge import-prd <file> or author prd.md)"
 }
 
-# Command: forge import <project-name> <prd-file>
-function Invoke-ForgeImport {
-    param(
-        [string]$ProjectName,
-        [string]$PrdFile
-    )
-
-    if (-not $ProjectName -or -not $PrdFile) {
-        Write-ForgeError "Usage: forge import [project-name] [prd-file]"
-        return
-    }
-
-    Show-Banner
-    Write-ForgeInfo "Importing PRD for project: $ProjectName"
-    Write-Host ""
-
-    if (-not (Test-Path $PrdFile)) {
-        Write-ForgeError "PRD file not found: $PrdFile"
-        return
-    }
-
-    $ProjectPath = "$ProjectRoot\$ProjectName"
-
-    if (Test-Path $ProjectPath) {
-        Write-ForgeError "Project already exists: $ProjectPath"
-        return
-    }
-
-    Write-ForgeInfo "Creating project directory: $ProjectPath"
-    New-Item -ItemType Directory -Path $ProjectPath -Force | Out-Null
-    Copy-Item $PrdFile "$ProjectPath\prd.md" -Force
-
-    Write-ForgeSuccess "Project created at: $ProjectPath"
-    Write-Host ""
-    Write-ForgeInfo "Next: cd into the project and run 'forge status'"
-    Write-Host ""
-    Write-Host "  cd $ProjectPath" -ForegroundColor Yellow
-    Write-Host "  forge status" -ForegroundColor Yellow
-    Write-Host ""
-    Write-ForgeInfo "The Validator Agent will analyze your PRD"
-}
+# Legacy command removed - use 'forge import-prd' instead
 
 # Command: forge status
 function Invoke-ForgeStatus {
@@ -629,47 +595,101 @@ function Invoke-ForgeHelp {
     Write-Host "=============================================================" -ForegroundColor Cyan
     Write-Host ""
 
-    Write-Host "Core Commands:" -ForegroundColor Yellow
+    # STEP 0 - Core Setup
+    Write-Host "STEP 0 - CORE SETUP:" -ForegroundColor Yellow
     Write-Host "  forge start [name]              Create new project from scratch"
-    Write-Host "  forge import [name] [file]      Import existing PRD"
-    Write-Host "  forge status                    Show confidence and progress"
-    Write-Host "  forge show [section]            Expand section details"
+    Write-Host "  forge status                    Show confidence and progress (legacy)"
+    Write-Host "  forge show [section]            Show deliverables/blockers/state/prd/history"
+    Write-Host "  forge show-prd                  Display parsed PRD with confidence & quality"
+    Write-Host "  forge fix [blocker]             Get guidance for specific blocker"
     Write-Host ""
 
-    Write-Host "GitHub Commands:" -ForegroundColor Yellow
+    # STEP 1 - PRD Development
+    Write-Host "STEP 1 - PRD DEVELOPMENT:" -ForegroundColor Yellow
+    Write-Host "  forge import-prd [file]         Import PRD using AI extraction"
+    Write-Host "  forge show-prd                  Display parsed PRD model (features, screens, etc)"
+    Write-Host "  forge prd-report                Generate PRD analysis report with confidence"
+    Write-Host "  forge prd-feedback              Get AI feedback on PRD quality & issues"
+    Write-Host "  forge evolve-spec [request]     AI-guided PRD/IA evolution from user request"
+    Write-Host "  forge export-prd                Export PRD as markdown"
+    Write-Host "  forge start-workflow [name]     Interactive project creation workflow"
+    Write-Host "  forge status-workflow           Comprehensive status report (legacy)"
+    Write-Host ""
+
+    # STEP 2 - GitHub Foundation
+    Write-Host "STEP 2 - GITHUB FOUNDATION:" -ForegroundColor Yellow
     Write-Host "  forge setup-repo [name]         Create GitHub repo with CI/CD"
     Write-Host "  forge generate-issues           Convert PRD to GitHub issues"
+    Write-Host "  forge generate-issues-workflow  Validated issue generation"
+    Write-Host ""
+
+    # STEP 3 - Information Architecture
+    Write-Host "STEP 3 - IA (INFORMATION ARCHITECTURE):" -ForegroundColor Yellow
+    Write-Host "  forge import-ia [file]          Import IA from sitemap/flows/ERD"
+    Write-Host "  forge ia-sitemap-report         Generate sitemap analysis report"
+    Write-Host "  forge ia-userflows-report       Generate user flows report"
+    Write-Host "  forge ia-erd-report             Generate entity relationship diagram"
+    Write-Host ""
+
+    # STEP 4 — Implementation
+    Write-Host "STEP 4 — IMPLEMENTATION:" -ForegroundColor Yellow
     Write-Host "  forge issue [number]            Process GitHub issue"
     Write-Host "  forge review-pr [number]        Review pull request"
     Write-Host "  forge test                      Run test suite"
     Write-Host "  forge deploy                    Check deployment status"
     Write-Host ""
 
-    Write-Host "Workflow Commands:" -ForegroundColor Yellow
-    Write-Host "  forge start-workflow [name]     Interactive project creation"
-    Write-Host "  forge status-workflow           Comprehensive status report"
-    Write-Host "  forge generate-issues-workflow  Validated issue generation"
-    Write-Host ""
-
-    Write-Host "Session Commands:" -ForegroundColor Yellow
+    # Session & Notes
+    Write-Host "SESSION COMMANDS:" -ForegroundColor Yellow
     Write-Host "  forge note ""message""            Capture important context/feedback"
     Write-Host "  forge session-close             End session and generate summary"
     Write-Host "  forge show last-session         View previous session summary"
     Write-Host "  forge show history              View all project sessions"
     Write-Host ""
 
-    Write-Host "Utility Commands:" -ForegroundColor Yellow
-    Write-Host "  forge fix [blocker]             Get guidance for blocker"
-    Write-Host "  forge export                    Export PRD as markdown"
+    # Dev Mode
+    Write-Host "DEV COMMANDS (Development Mode Only):" -ForegroundColor Yellow
+    Write-Host "  forge mode [prod|dev]           Switch between modes or show current"
+    Write-Host "  forge dev-test                  Run Forge test suite"
+    Write-Host "  forge dev-backup                Backup Forge system files"
+    Write-Host "  forge dev-edit [file]           Edit system file"
+    Write-Host "  forge dev-note ""message""        Log system development note"
+    Write-Host "  forge dev-status                Show system development status"
+    Write-Host ""
+
+    # Project Management
+    Write-Host "PROJECT MANAGEMENT:" -ForegroundColor Yellow
+    Write-Host "  forge delete-project            Safely delete current project with backups"
+    Write-Host "  forge remove-project            (alias for delete-project)"
+    Write-Host ""
+
+    # Utilities
+    Write-Host "UTILITY COMMANDS:" -ForegroundColor Yellow
     Write-Host "  forge help                      Show this help"
     Write-Host "  forge version                   Show Forge version"
     Write-Host ""
 
-    Write-Host "Examples:" -ForegroundColor Yellow
+    # Examples
+    Write-Host "EXAMPLES:" -ForegroundColor Yellow
+    Write-Host "  # Start new project"
     Write-Host "  forge start fitness-tracker"
-    Write-Host "  forge import my-app ./prd.md"
-    Write-Host "  forge status"
+    Write-Host ""
+    Write-Host "  # Import and analyze PRD"
+    Write-Host "  forge import-prd ./prd.md"
+    Write-Host "  forge show-prd"
+    Write-Host "  forge prd-report"
+    Write-Host "  forge prd-feedback"
+    Write-Host "  forge evolve-spec ""Add user authentication with OAuth"""
+    Write-Host ""
+    Write-Host "  # Import and analyze IA"
+    Write-Host "  forge import-ia"
+    Write-Host "  forge ia-sitemap-report"
+    Write-Host "  forge ia-userflows-report"
+    Write-Host "  forge ia-erd-report"
+    Write-Host ""
+    Write-Host "  # Generate GitHub issues"
     Write-Host "  forge setup-repo fitness-tracker"
+    Write-Host "  forge generate-issues"
     Write-Host "  forge issue 42"
     Write-Host ""
 
@@ -903,19 +923,30 @@ Initialize-SessionTracking
 # Main command router
 switch ($Command) {
     'start'                     { if ($Arguments) { Invoke-ForgeStart $Arguments[0] } else { Invoke-ForgeStart } }
-    'import'                    { if ($Arguments.Count -ge 2) { Invoke-ForgeImport $Arguments[0] $Arguments[1] } else { Invoke-ForgeImport } }
+    'import-prd'                { & "$ForgeRoot\scripts\forge-import-prd.ps1" @Arguments }
+    'import-ia'                 { & "$ForgeRoot\scripts\forge-import-ia.ps1" @Arguments }
     'status'                    { Invoke-ForgeStatus }
     'show'                      { if ($Arguments) { Invoke-ForgeShow $Arguments[0] } else { Invoke-ForgeShow } }
+    'show-prd'                  {
+        # Map '--plain' flag and ensure artifacts before rendering
+        $argsFiltered = @()
+        foreach($a in $Arguments){ if ($a -in @('--plain','-plain','-Plain','/plain')) { $env:FORGE_PLAIN='1' } else { $argsFiltered += $a } }
+        $projPath = (Get-Location)
+        try { [void](Ensure-ProjectArtifacts -ProjectPath $projPath -Quiet) } catch { Write-ForgeError $_; return }
+        & "$ForgeRoot\scripts\forge-show-prd.ps1" -ProjectPath $projPath @argsFiltered
+    }
     'setup-repo'                { if ($Arguments) { Invoke-ForgeSetupRepo $Arguments[0] } else { Invoke-ForgeSetupRepo } }
     'generate-issues'           { Invoke-ForgeGenerateIssues }
     'issue'                     { if ($Arguments) { Invoke-ForgeIssue $Arguments[0] } else { Invoke-ForgeIssue } }
     'ia-sitemap-report'         { & "$ForgeRoot\scripts\forge-ia-sitemap-report.ps1" @Arguments }
     'ia-userflows-report'       { & "$ForgeRoot\scripts\forge-ia-userflows-report.ps1" @Arguments }
+    'ia-erd-report'             { & "$ForgeRoot\scripts\forge-ia-erd-report.ps1" @Arguments }
     'review-pr'                 { if ($Arguments) { Invoke-ForgeReviewPR $Arguments[0] } else { Invoke-ForgeReviewPR } }
     'test'                      { Invoke-ForgeTest }
     'deploy'                    { Invoke-ForgeDeploy }
     'fix'                       { if ($Arguments) { Invoke-ForgeFix $Arguments[0] } else { Invoke-ForgeFix } }
     'export'                    { Invoke-ForgeExport }
+    'export-prd'                { Invoke-ForgeExport }
     'help'                      { Invoke-ForgeHelp }
     'version'                   { Invoke-ForgeVersion }
     'note'                      { if ($Arguments) { Invoke-ForgeNote ($Arguments -join ' ') } else { Invoke-ForgeNote } }
@@ -929,10 +960,44 @@ switch ($Command) {
     'start-workflow'            { & "$ForgeRoot\scripts\forge-start-workflow.ps1" @Arguments }
     'status-workflow'           { & "$ForgeRoot\scripts\forge-status-workflow.ps1" }
     'generate-issues-workflow'  { & "$ForgeRoot\scripts\forge-generate-issues-workflow.ps1" }
+    'evolve-spec'               { & "$ForgeRoot\scripts\forge-evolve-spec.ps1" @Arguments }
 
-    'prd-report'                { & "$ForgeRoot\scripts\forge-prd-report.ps1" @Arguments }
+    'prd-report'                {
+        try { [void](Ensure-ProjectArtifacts -ProjectPath (Get-Location) -Quiet) } catch { Write-ForgeError $_; return }
+        & "$ForgeRoot\scripts\forge-prd-report.ps1" @Arguments
+    }
     'prd-feedback'              { & "$ForgeRoot\scripts\forge-prd-feedback.ps1" @Arguments }
-    'prd-audit'                 { & "$ForgeRoot\scripts\forge-prd-feedback.ps1" @Arguments }
+    'delete-project'            {
+        # Parse arguments for Remove-ForgeProject (array-splat doesn't bind named params)
+        $projPath = (Get-Location).Path
+        $force = $false
+        $noBackup = $false
+        for ($i = 0; $i -lt $Arguments.Count; $i++) {
+            $arg = $Arguments[$i]
+            switch -Regex ($arg) {
+                '^(?:-ProjectPath|-Path|--path)$' { if ($i+1 -lt $Arguments.Count) { $projPath = $Arguments[$i+1]; $i++ }; continue }
+                '^(?:-Force|--force|-y|--yes)$'   { $force = $true; continue }
+                '^(?:-NoBackup|--no-backup)$'     { $noBackup = $true; continue }
+                default { }
+            }
+        }
+        Remove-ForgeProject -ProjectPath $projPath -Force:$force -NoBackup:$noBackup
+    }
+    'remove-project'            {
+        $projPath = (Get-Location).Path
+        $force = $false
+        $noBackup = $false
+        for ($i = 0; $i -lt $Arguments.Count; $i++) {
+            $arg = $Arguments[$i]
+            switch -Regex ($arg) {
+                '^(?:-ProjectPath|-Path|--path)$' { if ($i+1 -lt $Arguments.Count) { $projPath = $Arguments[$i+1]; $i++ }; continue }
+                '^(?:-Force|--force|-y|--yes)$'   { $force = $true; continue }
+                '^(?:-NoBackup|--no-backup)$'     { $noBackup = $true; continue }
+                default { }
+            }
+        }
+        Remove-ForgeProject -ProjectPath $projPath -Force:$force -NoBackup:$noBackup
+    }
     default                     { Invoke-ForgeHelp }
 }
 

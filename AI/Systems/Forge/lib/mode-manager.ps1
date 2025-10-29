@@ -19,8 +19,9 @@ function Assert-DevMode {
         Write-Host "[INFO] Or use: " -NoNewline -ForegroundColor Yellow
         Write-Host "forge mode dev" -ForegroundColor White
         Write-Host ""
-        throw "Dev mode required"
+        return $false
     }
+    return $true
 }
 
 function Test-SystemFile {

@@ -392,40 +392,40 @@ Fetching PR from GitHub via gh CLI...
 ---
 
 ### `forge test`
-**Purpose**: Run test suite
+**Purpose**: Run test suite for the project or for the Forge system itself.
 **Context**: Must run from project directory
-**Auto-detects**: Rails, Node.js, Python
+**Auto-detects**: Rails, Node.js, Python, PowerShell (Pester)
 
 **What it does**:
-1. Detects project framework (Rails, Node, Python, etc.)
-2. Runs appropriate test command
-3. Shows test results
+1. Detects project framework (Rails, Node, Python, etc.) or Forge system tests.
+2. Runs appropriate test command.
+3. Shows test results.
 
 **Framework Detection**:
 - **Rails**: Detects `Gemfile` → runs `rails test`
 - **Node.js**: Detects `package.json` → runs `npm test`
 - **Python**: Detects `requirements.txt` or `pyproject.toml` → runs `pytest`
+- **Forge System**: Detects `*.Tests.ps1` files in `tests/` → runs `Invoke-Pester`
 
 **Usage**:
 ```bash
+# Run tests for a user project
 cd C:\Users\User\AI\Projects\fitness-tracker
+forge test
+
+# Run tests for the Forge system itself
+cd C:\Users\User\AI\Systems\Forge
 forge test
 ```
 
-**Example Output** (Rails):
+**Example Output** (Pester):
 ```
 ℹ️  Running test suite...
 
-Detected Rails project. Running: rails test
+Detected Forge System tests. Running: Invoke-Pester
 
-Run options: --seed 12345
-
-# Running:
-
-....................
-
-Finished in 2.345678s, 8.5254 runs/s, 12.7881 assertions/s.
-20 runs, 30 assertions, 0 failures, 0 errors, 0 skips
+Tests completed in 78ms
+Passed: 1, Failed: 0, Skipped: 0, Pending: 0, Inconclusive: 0
 ```
 
 **Autocomplete**: Yes (no arguments)
@@ -467,55 +467,7 @@ STATUS  NAME        WORKFLOW   BRANCH  EVENT  ID
 
 ## Utility Commands
 
-### `forge fix <blocker>`
-**Purpose**: Get detailed guidance for specific blocker
-
-**Arguments**:
-- `missing_tech_stack` - Tech stack incomplete
-- `conflicting_features` - Contradictory requirements
-- `low_confidence` - Confidence below 95%
-- `vague_features` - Acceptance criteria missing
-- `missing_compliance` - Industry compliance not addressed
-
-**Usage**:
-```bash
-forge fix missing_tech_stack
-forge fix vague_features
-forge fix conflicting_features
-```
-
-**Example Output** (forge fix vague_features):
-```
-ℹ️  Getting guidance for: vague_features
-
-🚨 CRITICAL: Features Too Vague
-
-Reason: Cannot build without clear feature definitions.
-        Acceptance criteria missing or incomplete.
-
-Examples:
-❌ Vague: "User dashboard"
-✅ Specific: "User dashboard showing: workout history (last 30 days),
-              progress charts (weight/reps over time), upcoming
-              scheduled workouts, personal records"
-
-❌ Vague: "Payment system"
-✅ Specific: "Stripe integration for: monthly subscriptions ($9.99/mo),
-              annual plans ($99/year with 2 months free), payment
-              method management, invoice history"
-
-Resolution:
-1. Add acceptance criteria to each feature
-2. Define what "done" looks like
-3. Be specific about data, UI, and behavior
-
-Agent: analyst
-```
-
-**Autocomplete**: Yes (blocker argument with predefined options)
-
----
-
+### `forge evolve-spec`
 ### `forge export`
 **Purpose**: Export PRD as markdown
 **Context**: Must run from project directory
@@ -710,4 +662,338 @@ forge setup-repo fitness-tracker
 
 ---
 
+## Project Management Commands
+
+### `forge delete-project` / `forge remove-project`
+**Purpose**: Safely delete a Forge project with comprehensive validation
+**Context**: Must run from within the project directory to delete
+**Status**: ✅ FULLY IMPLEMENTED
+
+**What it does**:
+1. Verifies execution is within a valid project directory (contains `.forge-prd-state.json`)
+2. Protects core Forge system from accidental deletion
+3. Scans for system dependencies (symbolic links, config references)
+4. Displays project information and deletion impact
+5. Requires explicit confirmation (project name + "DELETE" keyword)
+6. Creates automatic backup before deletion (unless `--NoBackup` specified)
+7. Removes project directory and all files
+8. Reports any system dependencies that need manual cleanup
+
+**Safety Guardrails**:
+- ✅ Must be run from within a project directory
+- ✅ Cannot delete Forge system directory or its subdirectories
+- ✅ Warns if project path doesn't match expected pattern (`\AI\Projects\`)
+- ✅ Scans for symbolic links pointing to project
+- ✅ Scans for config files referencing project
+- ✅ Checks global state file for references
+- ✅ Creates backup before deletion (stored in `Forge\.backups`)
+- ✅ Requires two-step confirmation (project name + "DELETE")
+- ✅ Can skip confirmation with `-Force` flag (still performs safety checks)
+
+**Usage**:
+```bash
+# Basic usage (from within project directory)
+cd C:\Users\User\AI\Projects\old-project
+forge delete-project
+
+# Delete with explicit path
+forge delete-project -ProjectPath "C:\Users\User\AI\Projects\old-project"
+
+# Skip confirmation (still performs safety checks)
+forge delete-project -Force
+
+# Skip backup creation (not recommended)
+forge delete-project -NoBackup
+
+# Combined flags
+forge delete-project -Force -NoBackup
+```
+
+**Example Output**:
+```
+🔍 Scanning for system dependencies...
+   ✅ No system dependencies found
+
+╔════════════════════════════════════════════════════════════╗
+║           PROJECT DELETION CONFIRMATION                   ║
+╚════════════════════════════════════════════════════════════╝
+
+Project Details:
+  Name:       fitness-tracker-old
+  Path:       C:\Users\User\AI\Projects\fitness-tracker-old
+  Created:    2025-01-15 10:30:00
+  Confidence: 45%
+
+Deletion Impact:
+  Files:      127 files
+  Size:       15.3 MB
+  Backup:     Will be created before deletion
+
+⚠️  WARNING: This action cannot be undone!
+
+To confirm deletion, type the project name exactly: fitness-tracker-old
+> fitness-tracker-old
+
+Are you absolutely sure? Type 'DELETE' to confirm:
+> DELETE
+
+📦 Creating backup...
+   ✅ Backup created: C:\Users\User\AI\Systems\Forge\.backups\deleted-project-fitness-tracker-old-20251025-143022
+
+🗑️  Deleting project...
+
+✅ Project deleted successfully
+   Path: C:\Users\User\AI\Projects\fitness-tracker-old
+
+💾 Backup location: C:\Users\User\AI\Systems\Forge\.backups\deleted-project-fitness-tracker-old-20251025-143022
+```
+
+**Example with Dependencies**:
+```
+🔍 Scanning for system dependencies...
+
+⚠️  WARNING: Found system dependencies
+
+   Config files referencing this project:
+     • C:\Users\User\AI\Systems\Forge\.forge-dev-log.json
+     • C:\Users\User\.forge-state.json
+
+   These dependencies will need manual cleanup after deletion.
+
+[... rest of confirmation flow ...]
+
+✅ Project deleted successfully
+
+⚠️  Remember to clean up system dependencies manually
+```
+
+**Backup Contents**:
+Each backup includes:
+- Complete copy of project directory
+- `.deletion-metadata.json` with:
+  - Project name and original path
+  - Deletion timestamp and user
+  - Project state snapshot
+  - List of detected dependencies
+
+**Restoring from Backup**:
+```bash
+# Copy backup to new location
+cp -r "C:\Users\User\AI\Systems\Forge\.backups\deleted-project-name-timestamp" "C:\Users\User\AI\Projects\restored-project"
+```
+
+**Important Notes**:
+- You cannot delete the Forge system itself using this command
+- Deletion is irreversible unless backup was created
+- Use `-NoBackup` only if you're absolutely certain
+- Dependencies in config files must be cleaned up manually
+- Backups are stored indefinitely and should be cleaned periodically
+
+**Related Commands**:
+- `forge status` - Check project before deletion
+- `forge show-prd` - Review project contents
+- `forge export` - Export PRD before deletion
+
+---
+
 **Generated by Forge v1.0**
+### `forge design-brief <type>`
+Purpose: Start the design brief interview for the current project. Type can be any label (e.g., `website`, `app`, `dashboard`).
+
+What it does:
+1. Optionally previews IA context (if found)
+2. Asks brief questions (who it’s for, feel, anti-patterns, color range, key features, inspiration)
+3. Saves `design/aesthetic-brief.md`
+4. Offers to proceed to Competitor Analysis
+
+Usage:
+```powershell
+cd C:\Users\User\AI\Projects\my-app
+forge design-brief website
+```
+
+---
+
+### `forge design-ref <type> <url-or-path>`
+Purpose: Add a single design reference directly to the living brief.
+
+What it does:
+1. Ensures `design/aesthetic-brief.md` exists
+2. Appends under “Inspiration References”: `- [type] value`
+
+Usage:
+```powershell
+forge design-ref website https://linear.app
+forge design-ref image C:\shots\nike-hero.png
+```
+
+---
+
+### `forge evolve-spec`
+**Status**: ✅ FULLY IMPLEMENTED
+**Purpose**: AI-guided PRD and IA evolution
+**Context**: Must run from project directory
+
+**What it does**:
+1. Prompts for plain English change request
+2. Analyzes impact using AI (OpenAI/Anthropic) or heuristics
+3. Identifies PRD changes (features, scope, NFRs, KPIs)
+4. Identifies IA changes (routes, flows, components, entities)
+5. Shows detailed impact report
+6. Requests user confirmation
+7. Applies changes to PRD and IA files
+8. Creates automatic backup
+9. Rebuilds project semantic model
+10. Recalculates confidence score
+
+**Supports**:
+- ✅ PRD modifications (features, scope, NFRs, KPIs, user stories)
+- ✅ IA modifications (routes, flows, components, entities)
+- ✅ Cross-document consistency validation
+- ✅ Automatic project-model rebuild
+- ✅ Semantic issue detection
+- ✅ Heuristic fallback if AI unavailable
+- ✅ Automatic backups
+
+**Usage**:
+```bash
+cd /c/Users/User/AI/Projects/fitness-tracker
+forge evolve-spec
+# Interactive prompt appears
+
+# With flags:
+forge evolve-spec --no-ai    # Use heuristic analysis only
+forge evolve-spec -y         # Skip confirmation prompt
+forge evolve-spec --yes      # Skip confirmation prompt
+```
+
+**Example Session**:
+```
+=============================================================
+          FORGE EVOLVE-SPEC - PRD/IA Evolution
+=============================================================
+
+What change would you like to make to your PRD/IA?
+(Describe in plain English)
+
+Change Request: Add a Programs feature that groups multiple workouts together
+
+[INFO] Loading project state...
+[INFO] Analyzing impact...
+[OK] AI analysis complete
+
+=============================================================
+CHANGE IMPACT ANALYSIS
+=============================================================
+
+REQUEST:
+  Add a Programs feature that groups multiple workouts together
+
+DETECTED INTENT:
+  Operation: add
+  Target: feature
+  Entity: Programs
+  Scope: SHOULD
+
+PRD MODIFICATIONS:
+
+  Features to Add:
+    + Programs [SHOULD]
+      Programs enables grouping multiple workouts into training programs
+
+  Non-Functional Requirements to Add:
+    + [Performance] Programs should have optimal performance with <200ms response time
+
+IA MODIFICATIONS:
+
+  Routes to Add:
+    + /programs
+      Programs
+
+  User Flows to Add:
+    + Access Programs
+      Steps: /dashboard -> /programs
+
+  Components to Add:
+    Route: /programs
+      + ProgramsHeader
+      + ProgramsContent
+      + ProgramsActions
+
+  Data Entities to Add:
+    + Programs
+      Fields: id, name, createdAt, updatedAt
+
+CONFIDENCE IMPACT: +2.0%
+
+=============================================================
+
+Apply these changes? (y/n): y
+
+[INFO] Applying changes...
+[OK] Changes applied
+[INFO] Rebuilding project model...
+[OK] Project model rebuilt
+[INFO] Recalculating confidence...
+[OK] Confidence recalculated
+
+=============================================================
+CHANGES APPLIED
+=============================================================
+
+FILES MODIFIED:
+  * prd.md
+  * ia/sitemap.md
+  * ia/flows.md
+  * ia/components.md
+  * ia/entities.md
+
+BACKUP CREATED:
+  .forge-backups/backup-evolve-20251023-162745
+
+NEW CONFIDENCE SCORE: 87.5%
+
+=============================================================
+
+NEXT STEPS:
+  forge status      # View updated status
+  forge prd-report  # Review PRD
+
+[OK] Evolution complete!
+```
+
+**Rollback**:
+If changes need to be reverted, restore from backup:
+```bash
+cp .forge-backups/backup-evolve-20251023-162745/prd.md ./prd.md
+cp -r .forge-backups/backup-evolve-20251023-162745/ia ./ia
+forge status  # Verify restoration
+```
+
+**AI Configuration**:
+Set environment variables or create `.forge-ai.json`:
+```json
+{
+  "provider": "openai",
+  "openai_api_key": "sk-...",
+  "openai_model": "gpt-4o"
+}
+```
+
+Or use Anthropic:
+```json
+{
+  "provider": "anthropic",
+  "anthropic_api_key": "sk-ant-...",
+  "anthropic_model": "claude-3-5-sonnet-20241022"
+}
+```
+
+**Notes**:
+- Always creates backup before applying changes
+- Falls back to heuristic analysis if AI fails
+- Validates consistency between PRD and IA
+- Automatically rebuilds semantic model
+- Works with both PRD and IA simultaneously
+
+---

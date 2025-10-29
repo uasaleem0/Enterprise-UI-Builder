@@ -126,7 +126,13 @@ function Update-AgentArchitecture {
         [hashtable]$IAData
     )
 
-    $systemPath = Join-Path $ProjectPath ".agent" "system"
+    # Build paths in a PS 5.1-compatible way
+    $agentPath = Join-Path $ProjectPath ".agent"
+    $systemPath = Join-Path $agentPath "system"
+    # Ensure directory exists (defensive in case .agent exists without subfolders)
+    if (-not (Test-Path $systemPath)) {
+        New-Item -ItemType Directory -Path $systemPath -Force | Out-Null
+    }
     $archFile = Join-Path $systemPath "project-architecture.md"
 
     $content = @"
@@ -170,7 +176,13 @@ function New-AgentSOP {
         [int]$ComplexityScore
     )
 
-    $sopsPath = Join-Path $ProjectPath ".agent" "sops"
+    # Build paths in a PS 5.1-compatible way
+    $agentPath = Join-Path $ProjectPath ".agent"
+    $sopsPath = Join-Path $agentPath "sops"
+    # Ensure directory exists before writing
+    if (-not (Test-Path $sopsPath)) {
+        New-Item -ItemType Directory -Path $sopsPath -Force | Out-Null
+    }
     $sopFile = Join-Path $sopsPath "$SOPName.md"
 
     # Skip if already exists

@@ -10,7 +10,8 @@ function New-ForgePRDReport {
         [double]$Confidence = [double]::NaN,
         [object[]]$NextSteps,
         [hashtable]$Traceability,
-        [string]$FeedbackText
+        [string]$FeedbackText,
+        [hashtable]$SemanticAnalysis
     )
 
     $lines = New-Object System.Collections.Generic.List[string]
@@ -133,6 +134,60 @@ function New-ForgePRDReport {
         $lines.Add('Note: AI analysis is advisory; PRD Confidence derives from gates + traceability only.')
         $lines.Add($sep)
         $lines.Add('')
+    }
+
+    # Semantic Analysis Section (NEW)
+    if ($SemanticAnalysis) {
+        $hasIssues = $false
+        $hasIssues = $hasIssues -or ($SemanticAnalysis.implied_dependencies -and $SemanticAnalysis.implied_dependencies.Count -gt 0)
+        $hasIssues = $hasIssues -or ($SemanticAnalysis.contradictions -and $SemanticAnalysis.contradictions.Count -gt 0)
+        $hasIssues = $hasIssues -or ($SemanticAnalysis.impossibilities -and $SemanticAnalysis.impossibilities.Count -gt 0)
+        $hasIssues = $hasIssues -or ($SemanticAnalysis.vague_features -and $SemanticAnalysis.vague_features.Count -gt 0)
+
+        if ($hasIssues) {
+            $lines.Add($rule)
+            $lines.Add('== SEMANTIC ANALYSIS ==')
+            $lines.Add($rule)
+            $lines.Add('')
+
+            if ($SemanticAnalysis.implied_dependencies -and $SemanticAnalysis.implied_dependencies.Count -gt 0) {
+                $lines.Add('Implied Dependencies:')
+                foreach ($dep in $SemanticAnalysis.implied_dependencies) {
+                    $lines.Add('  - ' + $dep)
+                }
+                $lines.Add('')
+            }
+
+            if ($SemanticAnalysis.contradictions -and $SemanticAnalysis.contradictions.Count -gt 0) {
+                $lines.Add('Contradictions:')
+                foreach ($con in $SemanticAnalysis.contradictions) {
+                    $lines.Add('  - ' + $con)
+                }
+                $lines.Add('')
+            }
+
+            if ($SemanticAnalysis.impossibilities -and $SemanticAnalysis.impossibilities.Count -gt 0) {
+                $lines.Add('Impossibilities:')
+                foreach ($imp in $SemanticAnalysis.impossibilities) {
+                    $lines.Add('  - ' + $imp)
+                }
+                $lines.Add('')
+            }
+
+            if ($SemanticAnalysis.vague_features -and $SemanticAnalysis.vague_features.Count -gt 0) {
+                $lines.Add('Vague/Incomplete Features:')
+                foreach ($vague in $SemanticAnalysis.vague_features) {
+                    $lines.Add('  - ' + $vague.Name + ':')
+                    foreach ($issue in $vague.Issues) {
+                        $lines.Add('    * ' + $issue)
+                    }
+                }
+                $lines.Add('')
+            }
+
+            $lines.Add($sep)
+            $lines.Add('')
+        }
     }
 
     # Feature Inventory
