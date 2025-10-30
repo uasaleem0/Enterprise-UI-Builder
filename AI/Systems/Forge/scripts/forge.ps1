@@ -13,7 +13,7 @@ param(
         'start-workflow', 'status-workflow', 'generate-issues-workflow',
         'note', 'session-close', 'mode', 'dev-test', 'dev-backup', 'dev-edit',
         'dev-note', 'dev-status', 'ia-sitemap-report', 'ia-userflows-report', 'ia-erd-report', 'prd-report', 'prd-feedback', 'evolve-spec',
-        'delete-project', 'remove-project'
+        'delete-project', 'remove-project', 'design-brief', 'design-ref'
     )]
     [string]$Command,
 
@@ -37,6 +37,7 @@ $FoundationPath = "$ForgeRoot\foundation"
 . "$LibPath\state-manager.ps1"
 . "$LibPath\prd-completeness-validator.ps1"
 . "$LibPath\forge-status-renderer.ps1"
+. "$LibPath\forge-status-dashboard.ps1"
 . "$LibPath\session-tracker.ps1"
 . "$LibPath\session-formatter.ps1"
 . "$LibPath\issue-generator.ps1"
@@ -160,22 +161,12 @@ function Invoke-ForgeStatus {
         # Get project name
         $projectName = Split-Path $ProjectPath -Leaf
 
-        # Render status
-        Show-ConfidenceTracker -ProjectName $projectName -Confidence $confidence -Deliverables $deliverables
-
-        # Get and show next steps
-        $state = @{
-            confidence = $confidence
-            deliverables = $deliverables
-        }
-        $nextSteps = Get-NextSteps -State $state
-        Show-NextSteps -Steps $nextSteps
-
-        # Update state file
+        # Get full state and render new dashboard
         $fullState = Get-ProjectState -ProjectPath $ProjectPath
-        $fullState.confidence = $confidence
-        $fullState.deliverables = $deliverables
-        Set-ProjectState -ProjectPath $ProjectPath -State $fullState
+        Show-DashboardStatus -ProjectPath $ProjectPath -State $fullState
+
+        Write-Host ""
+        Write-Host ""
 
     } catch {
         Write-ForgeError "Failed to parse PRD: $($_.Exception.Message)"
@@ -998,6 +989,8 @@ switch ($Command) {
         }
         Remove-ForgeProject -ProjectPath $projPath -Force:$force -NoBackup:$noBackup
     }
+    'design-brief'              { & "$LibPath\design-interview.ps1" @Arguments }
+    'design-ref'                { & "$LibPath\design-references.ps1" @Arguments }
     default                     { Invoke-ForgeHelp }
 }
 

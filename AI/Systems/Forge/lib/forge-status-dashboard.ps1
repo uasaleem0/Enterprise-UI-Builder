@@ -204,7 +204,7 @@ function Show-KeyMetricsPanel {
     # Features Defined
     $featureCount = 0
     if ($State.project_model -and $State.project_model.feature_to_routes) {
-        $featureCount = ($State.project_model.feature_to_routes | Get-Member -MemberType NoteProperty).Count
+        $featureCount = $State.project_model.feature_to_routes.Keys.Count
     }
     $featLine = " Features Defined:   $featureCount   (All documented)"
     Write-Host ("| " + $featLine + (' ' * (59 - $featLine.Length)) + "|") -ForegroundColor Gray
@@ -239,8 +239,8 @@ function Show-KeyMetricsPanel {
     # Blockers
     $blockerCount = 0
     if ($State.semantic_analysis) {
-        if ($State.semantic_analysis.contradictions) { $blockerCount += @($State.semantic_analysis.contradictions.PSObject.Properties).Count }
-        if ($State.semantic_analysis.impossibilities) { $blockerCount += @($State.semantic_analysis.impossibilities.PSObject.Properties).Count }
+        if ($State.semantic_analysis.contradictions) { $blockerCount += $State.semantic_analysis.contradictions.Keys.Count }
+        if ($State.semantic_analysis.impossibilities) { $blockerCount += $State.semantic_analysis.impossibilities.Keys.Count }
     }
     $blockerText = if ($blockerCount -eq 0) { "[OK] None!" } else { "$blockerCount found" }
     $blockLine = " Blockers:           $blockerText"

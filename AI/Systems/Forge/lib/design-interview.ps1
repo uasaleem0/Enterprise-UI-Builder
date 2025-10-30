@@ -323,3 +323,10 @@ function Start-DesignInterview {
         Start-CompetitorAnalysis -ProjectPath $ProjectPath
     }
 }
+
+# Entry point when called directly
+if ($MyInvocation.InvocationName -ne '.') {
+    $projectPath = Get-Location
+    $type = if ($args.Count -gt 0) { $args[0] } else { 'website' }
+    Start-DesignInterview -ProjectPath $projectPath -Type $type
+}
